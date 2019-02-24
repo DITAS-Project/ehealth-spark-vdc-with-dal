@@ -1,0 +1,11 @@
+syntax = "proto3";
+
+package com.ditas.ehealth;
+
+
+message DalMessageProperties {
+    string purpose = 1;
+    string requesterId = 2;
+}
+
+

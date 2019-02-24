@@ -1,0 +1,34 @@
+syntax = "proto3";
+
+package com.ditas.ehealth;
+
+import "DalMessageProperties.proto";
+
+
+// Request timeseries of patient's blood test component
+service AllValuesForBloodTestComponent {
+    rpc AskForAllValuesForBloodTestComponent (AllValuesForBloodTestComponentRequest) returns (AllValuesForBloodTestComponentReply) {}
+}
+
+
+message AllValuesForBloodTestComponentRequest {
+    //The patient's SSN
+    string socialId = 1;
+    //The blood test component
+    string testType = 2;
+    DalMessageProperties dalMessageProperties = 3;
+}
+
+
+message ValueForBloodTestComponentReply {
+    //The date in which the blood test was taken
+    string date = 1;
+    //Value of a blood test component
+    double value = 2;
+}
+
+
+message AllValuesForBloodTestComponentReply {
+    repeated ValueForBloodTestComponentReply reply = 1;
+}
+

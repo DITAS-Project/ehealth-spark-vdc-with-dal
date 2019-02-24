@@ -1,0 +1,29 @@
+syntax = "proto3";
+
+package com.ditas.ehealth;
+
+import "DalMessageProperties.proto";
+
+
+//Request average of component over an age range
+service BloodTestComponentAverage {
+    rpc AskForBloodTestComponentAverage (BloodTestComponentAverageRequest) returns (BloodTestComponentAverageReply) {}
+}
+
+
+message BloodTestComponentAverageRequest {
+    //The blood test component
+    string testType = 1;
+    //Start age range
+    uint32 startAgeRange = 2;
+    //End age range
+    uint32 endAgeRange = 3;
+    DalMessageProperties dalMessageProperties = 4;
+}
+
+
+message BloodTestComponentAverageReply {
+    //The average value of the component in the provided age range
+    double value = 1;
+}
+
