@@ -1,5 +1,5 @@
 
-name := "ehealth-grpc"
+name := "ehealth-dal"
 
 organization := "com.ditas"
 
