@@ -25,8 +25,8 @@ libraryDependencies ++= Seq(
   "com.amazonaws" % "aws-java-sdk-s3" % "1.11.234",
   "org.apache.hadoop" % "hadoop-client" % "2.8.2",
   "com.fasterxml.jackson.core" % "jackson-core" % "2.8.0",
-  "org.apache.spark" % "spark-core_2.11" % "2.3.0-GG" exclude("org.apache.hadoop","hadoop-client"),
-  "org.apache.spark" % "spark-sql_2.11" % "2.3.0-GG",
+  "org.apache.spark" % "spark-core_2.11" % "2.3.0" exclude("org.apache.hadoop","hadoop-client"),
+  "org.apache.spark" % "spark-sql_2.11" % "2.3.0",
   "org.yaml" % "snakeyaml" % "1.11",
   "com.typesafe.play" %% "play-json" % "2.6.6",
   "org.scalaj" %% "scalaj-http" % "2.4.1",
@@ -43,13 +43,6 @@ libraryDependencies += "com.fasterxml.jackson.module" %% "jackson-module-scala" 
 
 libraryDependencies ~= { _.map(_.exclude("org.slf4j", "slf4j-log4j12")) }
 libraryDependencies ~= { _.map(_.exclude("log4j", "log4j")) }
-
-dependencyOverrides ++= {
-  Seq(
-    "org.apache.spark" % "spark-core_2.11" % "2.3.0-GG",
-    "org.apache.spark" % "spark-sql_2.11" % "2.3.0-GG"
-  )
-}
 
 enablePlugins(JavaAppPackaging)
 

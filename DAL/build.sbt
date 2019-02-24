@@ -37,13 +37,6 @@ libraryDependencies += "com.fasterxml.jackson.module" %% "jackson-module-scala" 
 
 
 
-dependencyOverrides ++= {
-  Seq(
-    "org.apache.spark" % "spark-core_2.11" % "2.3.0-GG",
-    "org.apache.spark" % "spark-sql_2.11" % "2.3.0-GG"
-  )
-}
-
 enablePlugins(JavaAppPackaging)
 
 
