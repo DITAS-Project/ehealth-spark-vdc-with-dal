@@ -34,6 +34,8 @@ libraryDependencies ++= {
   )
 }
 
+dependencyOverrides += "com.fasterxml.jackson.core" % "jackson-databind" % "2.8.9"
+
 libraryDependencies ~= { _.map(_.exclude("org.slf4j", "slf4j-log4j12")) }
 // libraryDependencies ~= { _.map(_.exclude("com.fasterxml.jackson.module", "jackson-module-scala_2.11")) }
 // libraryDependencies ~= { _.map(_.exclude("org.scala-lang.modules", "scala-parser-combinators_2.11")) }
