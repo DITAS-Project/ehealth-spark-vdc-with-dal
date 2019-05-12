@@ -1,0 +1,11 @@
+syntax = "proto3";
+
+package com.ditas.ehealth;
+
+message DalPrivacyProperties {
+  enum PrivacyZone {
+    PUBLIC = 0;
+    PRIVATE = 1;
+  }
+  PrivacyZone privacyZone = 1;
+}

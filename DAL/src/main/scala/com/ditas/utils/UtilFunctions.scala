@@ -1,15 +1,8 @@
 package com.ditas.utils
 
-import com.ditas.configuration.ServerConfiguration
-
 import java.io.FileInputStream
 
-
-import com.ditas.ehealth.AvgRequest.{BloodTestComponentAverageGrpc, BloodTestComponentAverageRequest,
-  BloodTestComponentAverageReply}
-import com.ditas.ehealth.AllValuesRequest.{AllValuesForBloodTestComponentGrpc, AllValuesForBloodTestComponentRequest,
-  AllValuesForBloodTestComponentReply}
-
+import com.ditas.configuration.ServerConfiguration
 import org.apache.spark.sql.Row
 import org.yaml.snakeyaml.Yaml
 import org.yaml.snakeyaml.constructor.Constructor
