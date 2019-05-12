@@ -6,6 +6,7 @@ package com.ditas.ehealth;
 message DalMessageProperties {
     string purpose = 1;
     string requesterId = 2;
+    string authorization = 3;
 }
 
 
