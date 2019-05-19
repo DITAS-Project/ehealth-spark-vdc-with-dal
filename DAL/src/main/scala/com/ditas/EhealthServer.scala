@@ -1,28 +1,20 @@
 package com.ditas
 
 
-import io.grpc._
-import java.util.logging.Logger
-
 import com.ditas.configuration.ServerConfiguration
 import com.ditas.ehealth.EHealthService.{EHealthQueryReply, EHealthQueryRequest, EHealthQueryServiceGrpc}
 import com.ditas.utils.UtilFunctions
+import io.grpc._
 import org.apache.spark.sql.{DataFrame, SparkSession}
 import org.slf4j.LoggerFactory
-import io.grpc.ServerCall.Listener
-import scalaj.http.{Http, HttpOptions, HttpRequest, HttpResponse}
-
-import scala.concurrent.{ExecutionContext, Future}
-import scala.concurrent._
-import scala.concurrent.duration.Duration
 import play.api.libs.json._
-import io.grpc.stub.MetadataUtils
-import io.grpc.Metadata
-import org.apache.spark.sql.{DataFrame, Row, SaveMode, SparkSession, _}
+import scalaj.http.{Http, HttpOptions, HttpResponse}
+
 import scala.collection.JavaConverters._
+import scala.concurrent.{ExecutionContext, Future}
 
 object EhealthServer {
-  private val LOGGER = Logger.getLogger(classOf[EhealthServer].getName)
+  private val LOGGER = LoggerFactory.getLogger(classOf[EhealthServer])
   lazy val spark: SparkSession = SparkSession.builder.appName(EhealthServer.sparkAppName).master("local")
     .config("spark.hadoop.fs.s3a.endpoint", EhealthServer.ServerConfigFile.sparkHadoopF3S3AConfig.get("spark.hadoop.fs.s3a.endpoint"))
     .config("spark.hadoop.fs.s3a.access.key", EhealthServer.ServerConfigFile.sparkHadoopF3S3AConfig.get("spark.hadoop.fs.s3a.access.key"))
@@ -30,8 +22,6 @@ object EhealthServer {
     .config("spark.hadoop.fs.s3a.path.style.access", EhealthServer.ServerConfigFile.sparkHadoopF3S3AConfig.get("spark.hadoop.fs.s3a.path.style.access"))
     .config("spark.hadoop.fs.s3a.impl", EhealthServer.ServerConfigFile.sparkHadoopF3S3AConfig.get("spark.hadoop.fs.s3a.impl"))
     .config("spark.hadoop.fs.AbstractFileSystem.s3a.impl", EhealthServer.ServerConfigFile.sparkHadoopF3S3AConfig.get("spark.hadoop.fs.AbstractFileSystem.s3a.impl")).getOrCreate()
-
-  import spark.implicits._
 
   def main(args: Array[String]): Unit = {
     if (args.length < 1) {
@@ -134,7 +124,7 @@ class EhealthServer(executionContext: ExecutionContext) {
       bloodTestsCompliantDF = EnforcementEngineResponseProcessor.processResponse(spark, EhealthServer.ServerConfigFile,
         response, EhealthServer.debugMode, EhealthServer.ServerConfigFile.showDataFrameLength)
     } catch {
-      case e: Exception => EhealthServer.LOGGER.info("Exception in process engine response " + e);
+      case e: Exception => EhealthServer.LOGGER.error("Exception in process engine response " + e, e);
         return false
     }
     if (bloodTestsCompliantDF == spark.emptyDataFrame)
@@ -154,17 +144,17 @@ class EhealthServer(executionContext: ExecutionContext) {
     true
   }
 
-  private def getCompliantBloodTestsAndProfiles(spark: SparkSession, query: String,
-                                                queryOnJoinTables: String): DataFrame = {
-    if (!createDataAndProfileJoinDataFrame(spark, query)) {
+  private def getCompliantBloodTestsAndProfiles(spark: SparkSession, queryOnJoinedTable: String,
+                                                dataAndProfileJoin: String): DataFrame = {
+    if (!createDataAndProfileJoinDataFrame(spark, dataAndProfileJoin)) {
       EhealthServer.LOGGER.info("Error in createDataAndProfileJoinDataFrame")
       return spark.emptyDataFrame
     }
 
-    //var patientBloodTestsDF = spark.sql(queryOnJoinTables).toDF().filter(row => UtilFunctions.anyNotNull(row))
-    var patientBloodTestsDF = spark.sql(queryOnJoinTables).toDF()
+    var patientBloodTestsDF = spark.sql(queryOnJoinedTable).toDF().filter(row => UtilFunctions.anyNotNull(row))
+//    var patientBloodTestsDF = spark.sql(query).toDF()
     if (EhealthServer.debugMode) {
-      println(queryOnJoinTables)
+      println(queryOnJoinedTable)
       patientBloodTestsDF.distinct().show(EhealthServer.ServerConfigFile.showDataFrameLength, false)
       patientBloodTestsDF.printSchema
       patientBloodTestsDF.explain(true)
@@ -181,30 +171,41 @@ class EhealthServer(executionContext: ExecutionContext) {
       val purpose = request.dalMessageProperties.get.purpose
       val authorization = request.dalMessageProperties.get.authorization
 
-      import EhealthServer.spark.implicits._
+      def logAndReturnError(errorMessage: String) = {
+        EhealthServer.LOGGER.error(errorMessage)
+        Future.failed(Status.ABORTED.augmentDescription(errorMessage).asRuntimeException())
+      }
 
       if (purpose.isEmpty) {
-        Future.failed(Status.ABORTED.augmentDescription("Missing purpose").asRuntimeException())
+        val errorMessage = "Missing purpose"
+        logAndReturnError(errorMessage)
       } else if (authorization.isEmpty) {
-        Future.failed(Status.ABORTED.augmentDescription("Missing authorization").asRuntimeException())
+        val errorMessage = "Missing authorization"
+        logAndReturnError(errorMessage)
       } else if (queryObject.isEmpty) {
-        Future.failed(Status.ABORTED.augmentDescription("Missing query").asRuntimeException())
+        val errorMessage = "Missing query"
+        logAndReturnError(errorMessage)
       } else {
-        val queryOnJoinTables = sendRequestToEnforcmentEngine(purpose, "",
+        val dataAndProfileGovernedJoin = sendRequestToEnforcmentEngine(purpose, "",
           EhealthServer.ServerConfigFile.policyEnforcementUrl, queryObject)
 
-        if (queryOnJoinTables == "") {
+        if (dataAndProfileGovernedJoin == "") {
           Future.failed(Status.ABORTED.augmentDescription("Error in enforcement engine").asRuntimeException())
         }
         else {
           if (EhealthServer.ServerConfigFile.debugMode) {
             println("In Query: " + queryObject)
-            println("Query with Enforcement: " + queryOnJoinTables)
+            println("Query with Enforcement: " + dataAndProfileGovernedJoin)
           }
 
 //          val queryOnJoinTables = "SELECT " + avgTestType + " FROM joined where birthDate > \"" + minBirthDate + "\" AND birthDate < \"" + maxBirthDate + "\""
 
-          var resultDF = getCompliantBloodTestsAndProfiles(EhealthServer.spark, queryObject, queryOnJoinTables)
+          var queryOnJoinedTable = queryObject.replaceAll("blood_tests", "joined");
+          println(s"Query [${queryObject}] becomes [${queryOnJoinedTable}]")
+//          queryObjectOnJoinedTables = queryObject.replaceAll("patient", "joined");
+//          println(s"Query [${queryObject}] becomes [${queryObjectOnJoinedTables}]")
+
+          var resultDF = getCompliantBloodTestsAndProfiles(EhealthServer.spark, queryOnJoinedTable, dataAndProfileGovernedJoin)
           if (resultDF == EhealthServer.spark.emptyDataFrame) {
             //TODO: make the error message more informative
             Future.failed(Status.ABORTED.augmentDescription("Error processing enforcement engine result").asRuntimeException())
