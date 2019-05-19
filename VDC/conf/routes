@@ -1,0 +1,17 @@
+# Routes
+# This file defines all application routes (Higher priority routes first)
+# ~~~~
+
+# Home page
+GET /docs/swagger.json	controllers.ApiHelpController.getResources
+#GET /docs/	controllers.EnforcementEngine.redirectDocs
+GET	/docs/	controllers.Assets.at(path="/public/lib/swagger-ui/", file="index.html")
+GET	/docs/*file	controllers.Assets.at(path="/public/lib/swagger-ui/", file)
+
+
+# GET     /locations/json       controllers.ApplicationController.index
+
+
+#GET /patient/:socialId/blood-test/component/:testType controllers.EHealthVDCController.getAllValuesForBloodTestComponent(socialId: String, testType: String)
+
+GET /blood-test/component/:testType/average/$startAgeRange<[0-9]+>-$endAgeRange<[0-9]+> controllers.EHealthVDCController.getBloodTestComponentAverage(testType: String, startAgeRange: Int, endAgeRange: Int)

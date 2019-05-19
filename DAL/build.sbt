@@ -27,7 +27,9 @@ libraryDependencies ++= Seq(
   "org.scalaj" %% "scalaj-http" % "2.4.1",
   "org.slf4j" % "slf4j-api" % "1.7.25",
   "mysql" % "mysql-connector-java" % "6.0.6",
-  "org.apache.httpcomponents" % "httpcore" % "4.4.8"
+  "org.apache.httpcomponents" % "httpcore" % "4.4.8",
+  "com.typesafe.scala-logging" %% "scala-logging" % "3.7.2",
+   "ch.qos.logback" % "logback-classic" % "1.2.3"
 )
 libraryDependencies ~= { _.map(_.exclude("com.fasterxml.jackson.module", "jackson-module-scala_2.11")) }
 libraryDependencies ~= { _.map(_.exclude("com.google.guava", "guava")) }
