@@ -37,6 +37,7 @@ import io.swagger.annotations._
 import scalapb.json4s.JsonFormat
 import com.ditas.ehealth.EHealthService.EHealthQueryReply
 
+
 // TODO thread pool!!!
 @Api("EHealthVDCController")
 class EHealthVDCController @Inject() (config: Configuration, initService: Init, ws: WSClient) extends InjectedController {
@@ -149,8 +150,13 @@ class EHealthVDCController @Inject() (config: Configuration, initService: Init, 
           if (debugMode) {
             println("Range: " + startAgeRange + " " + endAgeRange)
           }
-
-          Future.successful(Ok(JsonFormat.toJsonString(response)))
+          import spark.implicits._
+          import org.apache.spark.sql.functions._
+          val responseDF = response.values.toDF()
+          val valuesDF = responseDF.select(json_tuple('value, flatTestType) as 'average_val)
+          val averageDF = valuesDF.agg(avg("average_val") as 'avg)
+          val resultStr = averageDF.toJSON.collect().mkString("[", ",", "]")
+          Future.successful(Ok(resultStr))
         }
       }
   }
