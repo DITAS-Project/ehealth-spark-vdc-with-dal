@@ -47,42 +47,52 @@ class EHealthVDCController @Inject() (config: Configuration, initService: Init, 
   var dalPort: Int = initService.getDalPort
 
 
-//  @ApiOperation(nickname = "getAllValuesForBloodTestComponent",
-//    value = "Get timeseries of patient's blood test component",
-//    notes =  "This method returns the collected values for a specific blood test component of a patient (identified " +
-//      "by his SSN), to be used by medical doctors",
-//    response = classOf[models.BloodTestComponentValue], responseContainer = "List", httpMethod = "GET")
-//  @ApiResponses(Array(
-//    new ApiResponse(code = 400, message = "Invalid parameters supplied"),
-//    new ApiResponse(code = 500, message = "Error processing result")))
-//  def getAllValuesForBloodTestComponent(@ApiParam(value = "The patient's SSN", required = true, allowMultiple = false) socialId: String,
-//                                        @ApiParam(value = "The blood test component", required = true,
-//                                          allowMultiple = false) testType: String)= Action.async {
-//    implicit request =>
-//      val spark = initService.getSparkSessionInstance
-//      val patientSSN = socialId
-//      var origtestType = testType
-//
-//      if (!request.headers.hasHeader("Purpose")) {
-//        Future.successful(BadRequest("Missing purpose"))
-//      } else if (!request.headers.hasHeader("RequesterId")) {
-//        Future.successful(BadRequest("Missing RequesterId"))
-//      } else if (dalURL.equals("")) {
-//        Future.successful(BadRequest("Missing DAL url"))
-//      } else{
-//
-//        val response:AllValuesForBloodTestComponentReply = EHealthClient.getAllValuesForBloodTestComponent(socialId, testType,
-//          request.headers("Purpose"),
-//          request.headers("RequesterId"), dalPort, dalURL)
-//
-//        if (response == "") {
-//          Future.successful(InternalServerError("Error in enforcement engine"))
-//        } else{
-//          println (response)
-//          Future.successful(Ok(JsonFormat.toJsonString(response)))
-//        }
-//      }
-//  }
+  @ApiOperation(nickname = "getAllValuesForBloodTestComponent",
+    value = "Get timeseries of patient's blood test component",
+    notes =  "This method returns the collected values for a specific blood test component of a patient (identified " +
+      "by his SSN), to be used by medical doctors",
+    response = classOf[models.BloodTestComponentValue], responseContainer = "List", httpMethod = "GET")
+  @ApiResponses(Array(
+    new ApiResponse(code = 400, message = "Invalid parameters supplied"),
+    new ApiResponse(code = 500, message = "Error processing result")))
+  def getAllValuesForBloodTestComponent(@ApiParam(value = "The patient's SSN", required = true, allowMultiple = false) socialId: String,
+                                        @ApiParam(value = "The blood test component", required = true,
+                                          allowMultiple = false) testType: String)= Action.async {
+    implicit request =>
+      val spark = initService.getSparkSessionInstance
+      val patientSSN = socialId
+      var origtestType = testType
+
+      if (!request.headers.hasHeader("Purpose")) {
+        Future.successful(BadRequest("Missing purpose"))
+      } else if (dalURL.equals("")) {
+        Future.successful(BadRequest("Missing DAL url"))
+      }  else if (patientSSN.isEmpty || origtestType.isEmpty) {
+        Future.successful(BadRequest("Missing patient social ID or test type"))
+      } else {
+        var flatTestType: String = null
+
+        if (origtestType.equals("cholesterol")) {
+          flatTestType = "cholesterol_total_value"
+        } else {
+          flatTestType = "%s_value".format(origtestType)
+        }
+        val queryOnJoinTables = "SELECT patientId, date, %s FROM blood_tests".format(flatTestType)
+
+        val response: EHealthQueryReply = EHealthClient.query(queryOnJoinTables, Seq(), request.headers("authorization"), request.headers("Purpose"), dalPort, dalURL)
+
+        if (response == "") {
+          Future.successful(InternalServerError("Error in enforcement engine"))
+        }
+        else{
+          if (debugMode) {
+            println(s"Patient socialId: ${patientSSN}, testType: ${testType}")
+          }
+
+          Future.successful(Ok(JsonFormat.toJsonString(response)))
+        }
+      }
+  }
 
 
   @ApiOperation(nickname = "getBloodTestComponentAverage",
@@ -100,7 +110,7 @@ class EHealthVDCController @Inject() (config: Configuration, initService: Init, 
                                      allowMultiple = false) endAgeRange: Int) = Action.async {
     implicit request =>
       val spark = initService.getSparkSessionInstance
-      val queryObject = request.body
+      val queryObject = testType
       var avgTestType:String = null
       val todayDate =  java.time.LocalDate.now
       val minBirthDate = todayDate.minusYears(endAgeRange)
@@ -113,31 +123,24 @@ class EHealthVDCController @Inject() (config: Configuration, initService: Init, 
       }  else if (startAgeRange >= endAgeRange) {
         Future.successful(BadRequest("Wrong age range"))
       } else {
-
-
-
-
-              val queryObject = testType
-              var avgTestType: String = null
-              val todayDate = java.time.LocalDate.now
-              val minBirthDate = todayDate.minusYears(endAgeRange)
-              val maxBirthDate = todayDate.minusYears(startAgeRange)
-
-//        if (testType.equals("cholesterol")) {
-//          avgTestType = "avg(cholesterol_total_value)"
-//        } else {
-//          avgTestType = "avg(" + "%s_value".format(testType).replaceAll("\\.", "_") + ")"
-//        }
-//        val queryOnJoinTables = "SELECT " + avgTestType + " FROM joined where birthDate > \"" + minBirthDate + "\" AND birthDate < \"" + maxBirthDate + "\""
+        if (testType.equals("cholesterol")) {
+          avgTestType = "avg(cholesterol_total_value)"
+        } else {
+          avgTestType = "avg(" + "%s_value".format(testType).replaceAll("\\.", "_") + ")"
+        }
+//        // val queryOnJoinTables = "SELECT patientId, date, %s FROM blood_tests".format(flatTestType)
+//        val queryOnJoinTables = "SELECT " + avgTestType + " FROM blood_tests where birthDate > \"" + minBirthDate + "\" AND birthDate < \"" + maxBirthDate + "\" FROM blood_tests"
+        var flatTestType: String = null
 
         if (testType.equals("cholesterol")) {
-          avgTestType = "cholesterol_total_value"
-              } else {
-          avgTestType = "%s_value".format(testType)
-              }
-        val queryOnJoinTables = "SELECT patientId, date, %s FROM blood_tests".format(avgTestType)
+          flatTestType = "cholesterol_total_value"
+        } else {
+          flatTestType = "%s_value".format(testType)
+        }
+        val queryOnJoinTables = "SELECT " + flatTestType + ", blood_tests.patientId FROM blood_tests INNER JOIN patientsProfiles ON blood_tests.patientId=patientsProfiles.patientId where " +
+          "birthDate > \"" + minBirthDate + "\" AND birthDate < \"" + maxBirthDate + "\""
 
-        val response: EHealthQueryReply = EHealthClient.getBloodTestComponentAverage(queryOnJoinTables, Seq(), request.headers("authorization"), request.headers("Purpose"), dalPort, dalURL)
+        val response: EHealthQueryReply = EHealthClient.query(queryOnJoinTables, Seq(), request.headers("authorization"), request.headers("Purpose"), dalPort, dalURL)
 
         if (response == "") {
           Future.successful(InternalServerError("Error in enforcement engine"))

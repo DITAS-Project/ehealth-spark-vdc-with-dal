@@ -8,8 +8,8 @@ import scala.concurrent.ExecutionContext
 
 object EHealthClient {
 
-  def getBloodTestComponentAverage(query: String, queryParameters: Seq[String], authorization: String,
-                                   purpose: String, serverPort: Int, serverUrl: String): EHealthQueryReply = {
+  def query(query: String, queryParameters: Seq[String], authorization: String,
+            purpose: String, serverPort: Int, serverUrl: String): EHealthQueryReply = {
     implicit val ec = ExecutionContext.global
     var reply: EHealthQueryReply = null
 

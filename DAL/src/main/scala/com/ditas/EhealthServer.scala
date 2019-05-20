@@ -121,19 +121,32 @@ class EhealthServer(executionContext: ExecutionContext) {
 
     var bloodTestsCompliantDF: DataFrame = null
     try {
+      var eeResponse = response.replace("blood_tests_patientId", "blood_tests.patientId")
+      eeResponse = eeResponse.replace("patientsProfiles_patientId", "patientsProfiles.patientId")
+
       bloodTestsCompliantDF = EnforcementEngineResponseProcessor.processResponse(spark, EhealthServer.ServerConfigFile,
-        response, EhealthServer.debugMode, EhealthServer.ServerConfigFile.showDataFrameLength)
+        eeResponse, EhealthServer.debugMode, EhealthServer.ServerConfigFile.showDataFrameLength)
     } catch {
       case e: Exception => EhealthServer.LOGGER.error("Exception in process engine response " + e, e);
         return false
     }
     if (bloodTestsCompliantDF == spark.emptyDataFrame)
       return false
+
+
+    bloodTestsCompliantDF.createOrReplaceTempView("joined")
+    if (EhealthServer.debugMode) {
+      println("===========" + "JOINED bloodTests and profiles" + "===========")
+      bloodTestsCompliantDF.distinct().show(EhealthServer.ServerConfigFile.showDataFrameLength, false)
+    }
+    return true
+    /*
     val profilesDF = DataFrameUtils.loadTableDFFromConfig(null, spark, EhealthServer.ServerConfigFile,
       "patientsProfiles")
     if (EhealthServer.debugMode) {
       profilesDF.distinct().show(EhealthServer.ServerConfigFile.showDataFrameLength, false)
     }
+
     //This is inner join
     var joinedDF = bloodTestsCompliantDF.join(profilesDF, Constants.SUBJECT_ID_COL_NAME)
     joinedDF.createOrReplaceTempView("joined")
@@ -142,6 +155,7 @@ class EhealthServer(executionContext: ExecutionContext) {
       joinedDF.distinct().show(EhealthServer.ServerConfigFile.showDataFrameLength, false)
     }
     true
+    */
   }
 
   private def getCompliantBloodTestsAndProfiles(spark: SparkSession, queryOnJoinedTable: String,

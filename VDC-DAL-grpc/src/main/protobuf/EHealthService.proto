@@ -5,7 +5,6 @@ package com.ditas.ehealth;
 import "DalMessageProperties.proto";
 import "DalPrivacyProperties.proto";
 
-//Request average of component over an age range
 service EHealthQueryService {
     rpc query (EHealthQueryRequest) returns (EHealthQueryReply) {}
 }
@@ -20,7 +19,6 @@ message EHealthQueryRequest {
 
 
 message EHealthQueryReply {
-    //The average value of the component in the provided age range
     repeated string values = 1;
 }
 
