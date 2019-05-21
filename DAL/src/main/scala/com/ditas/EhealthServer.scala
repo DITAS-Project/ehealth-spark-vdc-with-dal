@@ -211,22 +211,14 @@ class EhealthServer(executionContext: ExecutionContext) {
             println("In Query: " + queryObject)
             println("Query with Enforcement: " + dataAndProfileGovernedJoin)
           }
-
-//          val queryOnJoinTables = "SELECT " + avgTestType + " FROM joined where birthDate > \"" + minBirthDate + "\" AND birthDate < \"" + maxBirthDate + "\""
-
           var queryOnJoinedTable = queryObject.replaceAll("blood_tests", "joined");
           println(s"Query [${queryObject}] becomes [${queryOnJoinedTable}]")
-//          queryObjectOnJoinedTables = queryObject.replaceAll("patient", "joined");
-//          println(s"Query [${queryObject}] becomes [${queryObjectOnJoinedTables}]")
 
           var resultDF = getCompliantBloodTestsAndProfiles(EhealthServer.spark, queryOnJoinedTable, dataAndProfileGovernedJoin)
           if (resultDF == EhealthServer.spark.emptyDataFrame) {
             //TODO: make the error message more informative
             Future.failed(Status.ABORTED.augmentDescription("Error processing enforcement engine result").asRuntimeException())
           } else {
-            //Adjust output to blueprint
-//            resultDF = resultDF.withColumnRenamed(avgTestType, "value")
-
             resultDF = resultDF.filter(row => UtilFunctions.anyNotNull(row))
 
             if (EhealthServer.debugMode)
@@ -236,11 +228,7 @@ class EhealthServer(executionContext: ExecutionContext) {
               resultDF.count() == 0) {
               Future.failed(Status.ABORTED.augmentDescription("No results were found for the given query").asRuntimeException())
             } else {
-
               val values = resultDF.toJSON
-//              val value = resultDF.map { row => row.getDouble(0) }.first()
-//              val values = resultDF.toJSON.map { row =>   }.first()
-
               Future.successful(new EHealthQueryReply(values.collectAsList().asScala))
             }
           }
