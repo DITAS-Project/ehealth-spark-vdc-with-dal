@@ -15,6 +15,10 @@ jdbcConfig:
 
 policyEnforcementUrl: "http://IP:PORT/rewrite-sql-query"
 
+jwtServerTimeout: 5000 #milliseconds
+jwksServerEndpoint: https://153.92.30.56:58080/auth/realms/288/protocol/openid-connect/certs
+jwksCheckServerCertificate: false
+
 showDataFrameLength: 10
 
 dataTables:

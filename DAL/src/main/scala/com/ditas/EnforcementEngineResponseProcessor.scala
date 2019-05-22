@@ -20,10 +20,7 @@ object EnforcementEngineResponseProcessor {
                        showDataFrameLength: Int): DataFrame = {
     this.debugMode = debugMode
     val json: JsValue = Json.parse(response)
-    val table: String = new String("table")
-    var index: Integer = 0;
-    var cond = true;
-    var tableKey: String = null
+
     val tables = (json \ "tables").as[List[JsValue]]
     for (table <- tables) {
       val tableName = (table \ "name").as[String]
@@ -34,6 +31,16 @@ object EnforcementEngineResponseProcessor {
     if (debugMode) {
       println("the re-written query: " + newQuery.get)
     }
+
+    // Set encryption properties for writing the query result
+    val hadoopConfig = spark.sparkContext.hadoopConfiguration
+    val encryptionProperties = (json \ "encryptionProperties").as[List[JsValue]]
+    for (encryptionProperty <- encryptionProperties) {
+      val key = (encryptionProperty \ "key").as[String]
+      val value = (encryptionProperty \ "value").as[String]
+      hadoopConfig.set(key, value)
+    }
+
     val bloodTestsDF: DataFrame = spark.sql(query).toDF().filter(row => DataFrameUtils.anyNotNull(row))
     if (debugMode) {
       println (query)

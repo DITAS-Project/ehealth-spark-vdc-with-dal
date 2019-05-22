@@ -29,13 +29,18 @@ libraryDependencies ++= Seq(
   "mysql" % "mysql-connector-java" % "6.0.6",
   "org.apache.httpcomponents" % "httpcore" % "4.4.8",
   "com.typesafe.scala-logging" %% "scala-logging" % "3.7.2",
-   "ch.qos.logback" % "logback-classic" % "1.2.3"
+   "ch.qos.logback" % "logback-classic" % "1.2.3",
+  "com.auth0" % "jwks-rsa" % "0.8.0",
+  "com.auth0" % "java-jwt" % "3.8.0",
+  "com.pauldijou" %% "jwt-core" % "2.1.0"
 )
 libraryDependencies ~= { _.map(_.exclude("com.fasterxml.jackson.module", "jackson-module-scala_2.11")) }
+libraryDependencies ~= { _.map(_.exclude("com.fasterxml.jackson.core", "jackson-databind")) }
 libraryDependencies ~= { _.map(_.exclude("com.google.guava", "guava")) }
 
 // https://mvnrepository.com/artifact/com.fasterxml.jackson.module/jackson-module-scala
-libraryDependencies += "com.fasterxml.jackson.module" %% "jackson-module-scala" % "2.8.2"
+libraryDependencies += "com.fasterxml.jackson.core" % "jackson-databind" % "2.9.9"
+libraryDependencies += "com.fasterxml.jackson.module" %% "jackson-module-scala" % "2.9.9"
 
 
 

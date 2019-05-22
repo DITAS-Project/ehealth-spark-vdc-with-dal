@@ -3,10 +3,12 @@ package controllers
 import com.ditas.ehealth.DalPrivacyProperties.DalPrivacyProperties
 import com.ditas.ehealth.EHealthService.{EHealthQueryReply, EHealthQueryRequest, EHealthQueryServiceGrpc}
 import io.grpc._
+import org.slf4j.LoggerFactory
 
 import scala.concurrent.ExecutionContext
 
 object EHealthClient {
+  private val LOGGER = LoggerFactory.getLogger(EHealthClient.getClass)
 
   def query(query: String, queryParameters: Seq[String], authorization: String,
             purpose: String, serverPort: Int, serverUrl: String): EHealthQueryReply = {
@@ -28,7 +30,11 @@ object EHealthClient {
       reply = blockingStub.query(request)
       println(s"Num values: ${reply.values.length}")
     } catch {
-      case ex: StatusRuntimeException => println(ex.getStatus.getDescription)
+      case ex: StatusRuntimeException =>
+        val errorMessage = s"${ex.getStatus.getCode}. Query threw exception: ${ex.getStatus.getDescription} ."
+        println(errorMessage)
+        LOGGER.error(errorMessage, ex)
+        throw new RuntimeException(errorMessage)
     }
     reply
   }

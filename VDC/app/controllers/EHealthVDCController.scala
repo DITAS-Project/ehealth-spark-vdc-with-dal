@@ -79,18 +79,22 @@ class EHealthVDCController @Inject() (config: Configuration, initService: Init, 
           flatTestType = "%s_value".format(origtestType)
         }
         val queryOnJoinTables = "SELECT patientId, date, %s FROM blood_tests".format(flatTestType)
+        try {
+          val response: EHealthQueryReply = EHealthClient.query(queryOnJoinTables, Seq(), request.headers("authorization"), request.headers("Purpose"), dalPort, dalURL)
 
-        val response: EHealthQueryReply = EHealthClient.query(queryOnJoinTables, Seq(), request.headers("authorization"), request.headers("Purpose"), dalPort, dalURL)
-
-        if (response == "") {
-          Future.successful(InternalServerError("Error in enforcement engine"))
-        }
-        else{
-          if (debugMode) {
-            println(s"Patient socialId: ${patientSSN}, testType: ${testType}")
+          if (null == response) {
+            Future.successful(InternalServerError("Error in DAL or enforcement engine"))
           }
+          else {
+            if (debugMode) {
+              println(s"Patient socialId: ${patientSSN}, testType: ${testType}")
+            }
 
-          Future.successful(Ok(JsonFormat.toJsonString(response)))
+            Future.successful(Ok(JsonFormat.toJsonString(response)))
+          }
+        } catch {
+          case ex: RuntimeException =>
+            Future.successful(InternalServerError(ex.getMessage))
         }
       }
   }

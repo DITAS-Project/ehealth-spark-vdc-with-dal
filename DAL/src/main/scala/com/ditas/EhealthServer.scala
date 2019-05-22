@@ -3,7 +3,7 @@ package com.ditas
 
 import com.ditas.configuration.ServerConfiguration
 import com.ditas.ehealth.EHealthService.{EHealthQueryReply, EHealthQueryRequest, EHealthQueryServiceGrpc}
-import com.ditas.utils.UtilFunctions
+import com.ditas.utils.{JwtValidator, UtilFunctions}
 import io.grpc._
 import org.apache.spark.sql.{DataFrame, SparkSession}
 import org.slf4j.LoggerFactory
@@ -11,6 +11,8 @@ import play.api.libs.json._
 import scalaj.http.{Http, HttpOptions, HttpResponse}
 
 import scala.collection.JavaConverters._
+import scala.collection.mutable
+import scala.collection.mutable.ArrayBuffer
 import scala.concurrent.{ExecutionContext, Future}
 
 object EhealthServer {
@@ -51,6 +53,8 @@ object EhealthServer {
   private var debugMode = false
   private var sparkAppName = "EhealthServer"
   private var ServerConfigFile: ServerConfiguration = null
+
+  private var validRoles: mutable.Buffer[String] = ArrayBuffer("*")
 }
 
 
@@ -87,7 +91,7 @@ class EhealthServer(executionContext: ExecutionContext) {
     }
   }
 
-  private def sendRequestToEnforcmentEngine(purpose: String, requesterId: String, enforcementEngineURL: String,
+  private def sendRequestToEnforcmentEngine(purpose: String, requesterId: String, authorizationHeader: String, enforcementEngineURL: String,
                                             query: String): String = {
 
     val data = Json.obj(
@@ -104,7 +108,9 @@ class EhealthServer(executionContext: ExecutionContext) {
     val response: HttpResponse[String] = Http(enforcementEngineURL).postData(data.toString())
       .header("Content-Type", "application/json")
       .header("Charset", "UTF-8")
-      .header("accept", "application/json").option(HttpOptions.readTimeout(inf)).asString
+      .header("accept", "application/json")
+      .header("authorization", authorizationHeader)
+      .option(HttpOptions.readTimeout(inf)).asString
 
     var res_query: String = null
     res_query = response.body
@@ -178,6 +184,8 @@ class EhealthServer(executionContext: ExecutionContext) {
 
 
   private class EHealthQueryServiceImpl extends EHealthQueryServiceGrpc.EHealthQueryService {
+    private val jwtValidation = new JwtValidator(EhealthServer.ServerConfigFile)
+
     override def query(request: EHealthQueryRequest): Future[EHealthQueryReply] = {
 
       val queryObject = request.query
@@ -200,7 +208,17 @@ class EhealthServer(executionContext: ExecutionContext) {
         val errorMessage = "Missing query"
         logAndReturnError(errorMessage)
       } else {
-        val dataAndProfileGovernedJoin = sendRequestToEnforcmentEngine(purpose, "",
+        val authorizationHeader: String = request.dalMessageProperties.get.authorization
+        try {
+          jwtValidation.validateJwtToken(authorizationHeader, EhealthServer.ServerConfigFile.jwtServerTimeout, EhealthServer.validRoles)
+        } catch {
+          case e: Exception => {
+            EhealthServer.LOGGER.error("query", e);
+            return Future.failed(Status.UNAUTHENTICATED.augmentDescription(e.getMessage).asRuntimeException())
+          }
+        }
+
+        val dataAndProfileGovernedJoin = sendRequestToEnforcmentEngine(purpose, "", authorizationHeader,
           EhealthServer.ServerConfigFile.policyEnforcementUrl, queryObject)
 
         if (dataAndProfileGovernedJoin == "") {
