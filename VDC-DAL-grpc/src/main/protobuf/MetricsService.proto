@@ -1,0 +1,14 @@
+syntax = "proto3";
+
+package com.ditas.ehealth;
+
+service MetricsService {
+    rpc getDataSourceMetrics (GetDataSourceMetricsRequest) returns (GetDataSourceMetricsReply) {}
+}
+
+message GetDataSourceMetricsRequest {
+}
+
+message GetDataSourceMetricsReply {
+    string metrics = 1;
+}
