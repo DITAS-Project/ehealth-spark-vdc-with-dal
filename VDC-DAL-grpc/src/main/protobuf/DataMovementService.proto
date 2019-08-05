@@ -1,0 +1,41 @@
+syntax = "proto3";
+
+package com.ditas.ehealth;
+
+import "DalMessageProperties.proto";
+import "DalPrivacyProperties.proto";
+
+service DataMovementService {
+    rpc startDataMovement (StartDataMovementRequest) returns (StartDataMovementReply) {}
+    rpc finishDataMovement (FinishDataMovementRequest) returns (FinishDataMovementReply) {}
+}
+
+
+message StartDataMovementRequest {
+    DalMessageProperties dalMessageProperties = 1;
+    DalPrivacyProperties sourcePrivacyProperties = 2;
+    DalPrivacyProperties destinationPrivacyProperties = 3;
+
+    string query = 4;
+    repeated string queryParameters = 5;
+    string sharedVolumePath = 6;
+}
+
+
+message StartDataMovementReply {
+}
+
+message FinishDataMovementRequest {
+    DalMessageProperties dalMessageProperties = 1;
+    DalPrivacyProperties sourcePrivacyProperties = 2;
+    DalPrivacyProperties destinationPrivacyProperties = 3;
+
+    string query = 4;
+    repeated string queryParameters = 5;
+    string sharedVolumePath = 6;
+    string targetDatasource = 7;
+}
+
+
+message FinishDataMovementReply {
+}
