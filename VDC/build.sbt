@@ -28,8 +28,7 @@ libraryDependencies ++= {
     "com.amazonaws" % "aws-java-sdk-bundle" % "1.11.234",
     "mysql" % "mysql-connector-java" % "6.0.6",
     "com.thesamet.scalapb" %% "scalapb-json4s" % "0.7.2",
-    "org.scalatest" %% "scalatest" % "3.0.5" % Test,
-    specs2 % Test
+    "junit" % "junit" % "4.12" % Test
 
   )
 }

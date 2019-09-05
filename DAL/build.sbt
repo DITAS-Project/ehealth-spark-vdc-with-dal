@@ -32,7 +32,9 @@ libraryDependencies ++= Seq(
    "ch.qos.logback" % "logback-classic" % "1.2.3",
   "com.auth0" % "jwks-rsa" % "0.8.0",
   "com.auth0" % "java-jwt" % "3.8.0",
-  "com.pauldijou" %% "jwt-core" % "2.1.0"
+  "com.pauldijou" %% "jwt-core" % "2.1.0",
+  "junit" % "junit" % "4.12" % Test,
+  "io.grpc" % "grpc-testing" % "1.15.1" % Test
 )
 libraryDependencies ~= { _.map(_.exclude("com.fasterxml.jackson.module", "jackson-module-scala_2.11")) }
 libraryDependencies ~= { _.map(_.exclude("com.fasterxml.jackson.core", "jackson-databind")) }

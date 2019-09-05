@@ -55,41 +55,7 @@ object EhealthServer {
   private var ServerConfigFile: ServerConfiguration = null
 
   private var validRoles: mutable.Buffer[String] = ArrayBuffer("*")
-}
 
-
-
-class EhealthServer(executionContext: ExecutionContext) {
-  self =>
-  private[this] var server: Server = null
-
-  private def start(): Unit = {
-    val builder = ServerBuilder.forPort(EhealthServer.port)
-    builder.addService(EHealthQueryServiceGrpc.
-      bindService(new EHealthQueryServiceImpl, executionContext))
-
-    server = builder.build().start()
-
-    EhealthServer.LOGGER.info("Server started, listening on " + EhealthServer.port)
-    sys.addShutdownHook {
-      System.err.println("*** shutting down gRPC server since JVM is shutting down")
-      self.stop()
-      System.err.println("*** server shut down")
-    }
-  }
-
-  private def stop(): Unit = {
-    if (server != null) {
-      server.shutdown()
-    }
-  }
-
-
-  private def blockUntilShutdown(): Unit = {
-    if (server != null) {
-      server.awaitTermination()
-    }
-  }
 
   private def sendRequestToEnforcmentEngine(purpose: String, requesterId: String, authorizationHeader: String, enforcementEngineURL: String,
                                             query: String): String = {
@@ -172,7 +138,7 @@ class EhealthServer(executionContext: ExecutionContext) {
     }
 
     var patientBloodTestsDF = spark.sql(queryOnJoinedTable).toDF().filter(row => UtilFunctions.anyNotNull(row))
-//    var patientBloodTestsDF = spark.sql(query).toDF()
+    //    var patientBloodTestsDF = spark.sql(query).toDF()
     if (EhealthServer.debugMode) {
       println(queryOnJoinedTable)
       patientBloodTestsDF.distinct().show(EhealthServer.ServerConfigFile.showDataFrameLength, false)
@@ -183,10 +149,18 @@ class EhealthServer(executionContext: ExecutionContext) {
   }
 
 
-  private class EHealthQueryServiceImpl extends EHealthQueryServiceGrpc.EHealthQueryService {
+  class EHealthQueryServiceImpl extends EHealthQueryServiceGrpc.EHealthQueryService {
     private val jwtValidation = new JwtValidator(EhealthServer.ServerConfigFile)
 
     override def query(request: EHealthQueryRequest): Future[EHealthQueryReply] = {
+      return internalQuery(request, null/*responseParquetPath*/)
+    }
+
+    def queryToParquetFile(request: EHealthQueryRequest, responseParquetPath: String): Future[EHealthQueryReply] = {
+      return internalQuery(request, responseParquetPath)
+    }
+
+    def internalQuery(request: EHealthQueryRequest, responseParquetPath: String): Future[EHealthQueryReply] = {
 
       val queryObject = request.query
       val queryParameters = request.queryParameters
@@ -229,32 +203,76 @@ class EhealthServer(executionContext: ExecutionContext) {
             println("In Query: " + queryObject)
             println("Query with Enforcement: " + dataAndProfileGovernedJoin)
           }
-          var queryOnJoinedTable = queryObject.replaceAll("blood_tests", "joined");
+          val queryOnJoinedTable = queryObject.replaceAll("blood_tests", "joined");
           println(s"Query [${queryObject}] becomes [${queryOnJoinedTable}]")
 
-          var resultDF = getCompliantBloodTestsAndProfiles(EhealthServer.spark, queryOnJoinedTable, dataAndProfileGovernedJoin)
-          if (resultDF == EhealthServer.spark.emptyDataFrame) {
-            //TODO: make the error message more informative
-            Future.failed(Status.ABORTED.augmentDescription("Error processing enforcement engine result").asRuntimeException())
-          } else {
-            resultDF = resultDF.filter(row => UtilFunctions.anyNotNull(row))
+          val resultDF = getCompliantBloodTestsAndProfiles(EhealthServer.spark, queryOnJoinedTable, dataAndProfileGovernedJoin)
 
-            if (EhealthServer.debugMode)
-              resultDF.distinct().show(EhealthServer.ServerConfigFile.showDataFrameLength, false)
-
-            if (resultDF == EhealthServer.spark.emptyDataFrame ||
-              resultDF.count() == 0) {
-              Future.failed(Status.ABORTED.augmentDescription("No results were found for the given query").asRuntimeException())
-            } else {
-              val values = resultDF.toJSON
-              Future.successful(new EHealthQueryReply(values.collectAsList().asScala))
-            }
+          if (null != responseParquetPath) {
+            resultDF.write.parquet(responseParquetPath)
           }
+          val response = createResponse(resultDF)
+          response
+        }
+      }
+    }
+
+    def createResponse(resultDF: DataFrame): Future[EHealthQueryReply] = {
+      if (resultDF == EhealthServer.spark.emptyDataFrame) {
+        //TODO: make the error message more informative
+        Future.failed(Status.ABORTED.augmentDescription("Error processing enforcement engine result").asRuntimeException())
+      } else {
+        val nonNullResultDF = resultDF.filter(row => UtilFunctions.anyNotNull(row))
+
+        if (EhealthServer.debugMode)
+          nonNullResultDF.distinct().show(EhealthServer.ServerConfigFile.showDataFrameLength, false)
+
+        if (nonNullResultDF == EhealthServer.spark.emptyDataFrame ||
+          nonNullResultDF.count() == 0) {
+          Future.failed(Status.ABORTED.augmentDescription("No results were found for the given query").asRuntimeException())
+        } else {
+          val values = nonNullResultDF.toJSON
+          Future.successful(new EHealthQueryReply(values.collectAsList().asScala))
         }
       }
     }
   }
 
+}
+
+
+
+class EhealthServer(executionContext: ExecutionContext) {
+  self =>
+  private[this] var server: Server = null
+
+  private def start(): Unit = {
+    val builder = ServerBuilder.forPort(EhealthServer.port)
+    builder.addService(EHealthQueryServiceGrpc.
+      bindService(new EhealthServer.EHealthQueryServiceImpl, executionContext))
+
+    server = builder.build().start()
+
+    EhealthServer.LOGGER.info("Server started, listening on " + EhealthServer.port)
+    sys.addShutdownHook {
+      System.err.println("*** shutting down gRPC server since JVM is shutting down")
+      self.stop()
+      System.err.println("*** server shut down")
+    }
+  }
+
+  private def stop(): Unit = {
+    if (server != null) {
+      server.shutdown()
+    }
+  }
+
+
+  private def blockUntilShutdown(): Unit = {
+    if (server != null) {
+      server.awaitTermination()
+    }
+  }
 
 }
 
