@@ -157,9 +157,18 @@ class EHealthVDCController @Inject() (config: Configuration, initService: Init, 
           import spark.implicits._
           import org.apache.spark.sql.functions._
           val responseDF = response.values.toDF()
+          if (debugMode) {
+            println("DAL response: " + response.values.mkString(","))
+            println("ResponseDF: " + responseDF.show(5))
+          }
           val valuesDF = responseDF.select(json_tuple('value, flatTestType) as 'average_val)
           val averageDF = valuesDF.agg(avg("average_val") as 'avg)
+          if (debugMode) {
+            println("Average: ")
+            averageDF.show()
+          }
           val resultStr = averageDF.toJSON.collect().mkString("[", ",", "]")
+
           Future.successful(Ok(resultStr))
         }
       }

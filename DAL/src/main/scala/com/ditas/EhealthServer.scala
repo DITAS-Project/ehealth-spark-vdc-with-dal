@@ -229,7 +229,8 @@ object EhealthServer {
 
         if (nonNullResultDF == EhealthServer.spark.emptyDataFrame ||
           nonNullResultDF.count() == 0) {
-          Future.failed(Status.ABORTED.augmentDescription("No results were found for the given query").asRuntimeException())
+          LOGGER.info("No results were found for the given query")
+          Future.successful(new EHealthQueryReply())
         } else {
           val values = nonNullResultDF.toJSON
           Future.successful(new EHealthQueryReply(values.collectAsList().asScala))

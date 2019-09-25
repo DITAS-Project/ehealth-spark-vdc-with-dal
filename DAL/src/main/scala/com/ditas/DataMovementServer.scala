@@ -143,10 +143,9 @@ class DataMovementServer(executionContext: ExecutionContext) {
 
         if (nonNullResultDF == DataMovementServer.spark.emptyDataFrame ||
           nonNullResultDF.count() == 0) {
-          Future.failed(Status.ABORTED.augmentDescription("No results were found for the given query").asRuntimeException())
-        } else {
-          Future.successful(new StartDataMovementReply)
+          DataMovementServer.LOGGER.info("No results were found for the given query")
         }
+        Future.successful(new StartDataMovementReply)
       }
     }
   }
