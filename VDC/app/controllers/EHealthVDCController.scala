@@ -173,6 +173,35 @@ class EHealthVDCController @Inject() (config: Configuration, initService: Init, 
         }
       }
   }
+
+
+  def getPatientData(socialId: String)= Action.async {
+    implicit request =>
+      val spark = initService.getSparkSessionInstance
+
+      if (!request.headers.hasHeader("Purpose")) {
+        Future.successful(BadRequest("Missing purpose"))
+      } else if (dalURL.equals("")) {
+        Future.successful(BadRequest("Missing DAL url"))
+      }  else if (socialId.isEmpty ) {
+        Future.successful(BadRequest("Missing patient ID "))
+      } else {
+          val queryOnJoinTables = "SELECT patientId, birthCity FROM patientsProfiles WHERE socialId='%s'".format(socialId)
+        try {
+          val response: EHealthQueryReply = EHealthClient.query(queryOnJoinTables, Seq(), request.headers("authorization"), request.headers("Purpose"), dalPort, dalURL)
+
+          if (null == response) {
+            Future.successful(InternalServerError("Error in DAL or enforcement engine"))
+          }
+          else {
+              Future.successful(Ok(JsonFormat.toJsonString(response)))
+          }
+        } catch {
+          case ex: RuntimeException =>
+            Future.successful(InternalServerError(ex.getMessage))
+        }
+      }
+  }
 }
 
 
