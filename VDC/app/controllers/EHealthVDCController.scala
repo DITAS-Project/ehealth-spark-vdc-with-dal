@@ -162,12 +162,12 @@ class EHealthVDCController @Inject() (config: Configuration, initService: Init, 
             println("ResponseDF: " + responseDF.show(5))
           }
           val valuesDF = responseDF.select(json_tuple('value, flatTestType) as 'average_val)
-          val averageDF = valuesDF.agg(avg("average_val") as 'avg)
+          val averageDF = valuesDF.agg(avg("average_val") as 'value)
           if (debugMode) {
             println("Average: ")
             averageDF.show()
           }
-          val resultStr = averageDF.toJSON.collect().mkString("[", ",", "]")
+          val resultStr = averageDF.toJSON.collect().head
 
           Future.successful(Ok(resultStr))
         }
