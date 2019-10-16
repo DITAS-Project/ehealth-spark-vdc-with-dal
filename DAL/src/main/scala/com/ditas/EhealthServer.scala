@@ -197,11 +197,15 @@ object EhealthServer {
         val query_lower = queryObject.toLowerCase
         println(s"query lower case: [${query_lower}]")
         if(query_lower contains "from documents") {
+          DataFrameUtils.addTableToSpark(spark, ServerConfigFile, "documents",
+            ServerConfigFile.showDataFrameLength, debugMode)
           var docDF = spark.sql(queryObject).toDF()
           println(docDF)
           docDF.printSchema
           println("End of new part - Ety")
-          docDF
+
+          val values = docDF.toJSON
+          Future.successful(new EHealthQueryReply(values.collectAsList().asScala))
         }
         else {
           println("Not query from document. End of new part - Ety")

@@ -18,4 +18,6 @@ GET /blood-test/component/:testType/average/$startAgeRange<[0-9]+>-$endAgeRange<
 
 GET /patient/:socialId/details controllers.EHealthVDCController.getPatientData(socialId: String)
 
+GET  /categories/:patientId controllers.EHealthVDCController.getDocumentCategories(patientId: String)
+
 GET /nutritional-data/:filter controllers.EHealthVDCController.getNutritionalData(filter: String)
