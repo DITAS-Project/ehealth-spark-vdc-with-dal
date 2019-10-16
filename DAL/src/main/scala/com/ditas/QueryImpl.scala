@@ -111,39 +111,83 @@ class QueryImpl(spark: SparkSession, configFile: ServerConfiguration) {
     } else if (queryObject.isEmpty) {
       val errorMessage = "Missing query"
       throw new RequestException(errorMessage)
-    } else {
-      try {
-        jwtValidation.validateJwtToken(authorization, serverConfigFile.jwtServerTimeout, QueryImpl.validRoles)
-      } catch {
-        case e: Exception => {
-          QueryImpl.LOGGER.error("query", e);
-          throw e
-        }
+    }
+    try {
+      jwtValidation.validateJwtToken(authorization, serverConfigFile.jwtServerTimeout, QueryImpl.validRoles)
+    } catch {
+      case e: Exception => {
+        QueryImpl.LOGGER.error("query", e);
+        throw e
       }
+    }
 
-      val dataAndProfileGovernedJoin = sendRequestToEnforcementEngine(purpose, "", authorization,
-        serverConfigFile.policyEnforcementUrl, queryObject)
+    val dataAndProfileGovernedJoin = sendRequestToEnforcementEngine(purpose, "", authorization,
+      serverConfigFile.policyEnforcementUrl, queryObject)
 
-      if (dataAndProfileGovernedJoin == "") {
-        val errorMessage = "Error in enforcement engine"
-        throw new RequestException(errorMessage)
+    if (dataAndProfileGovernedJoin == "") {
+      val errorMessage = "Error in enforcement engine"
+      throw new RequestException(errorMessage)
+    }
+    else {
+      if (serverConfigFile.debugMode) {
+        println("In Query: " + queryObject)
+        println("Query with Enforcement: " + dataAndProfileGovernedJoin)
       }
-      else {
-        if (serverConfigFile.debugMode) {
-          println("In Query: " + queryObject)
-          println("Query with Enforcement: " + dataAndProfileGovernedJoin)
-        }
-        val queryOnJoinedTable = queryObject.replaceAll("blood_tests", "joined");
-        println(s"Query [${queryObject}] becomes [${queryOnJoinedTable}]")
+      val queryOnJoinedTable = queryObject.replaceAll("blood_tests", "joined");
+      println(s"Query [${queryObject}] becomes [${queryOnJoinedTable}]")
 
-        val resultDF = getCompliantBloodTestsAndProfiles(spark, queryOnJoinedTable, dataAndProfileGovernedJoin)
+      val resultDF = getCompliantBloodTestsAndProfiles(spark, queryOnJoinedTable, dataAndProfileGovernedJoin)
 
-        if (null != responseParquetPath) {
-          resultDF.write.mode(SaveMode.Overwrite).parquet(responseParquetPath)
-        }
-        resultDF
+      if (null != responseParquetPath) {
+        resultDF.write.mode(SaveMode.Overwrite).parquet(responseParquetPath)
       }
+      resultDF
     }
   }
 
+  def persistQueryResult(queryObject: String, queryParameters: Seq[String], purpose: String, authorization: String,
+                         sharedVolumePath: String) = {
+    if (purpose.isEmpty) {
+      val errorMessage = "Missing purpose"
+      throw new RequestException(errorMessage)
+    } else if (authorization.isEmpty) {
+      val errorMessage = "Missing authorization"
+      throw new RequestException(errorMessage)
+    } else if (queryObject.isEmpty) {
+      val errorMessage = "Missing query"
+      throw new RequestException(errorMessage)
+    }
+    try {
+      jwtValidation.validateJwtToken(authorization, serverConfigFile.jwtServerTimeout, QueryImpl.validRoles)
+    } catch {
+      case e: Exception => {
+        QueryImpl.LOGGER.error("query", e);
+        throw e
+      }
+    }
+    val dataAndProfileGovernedJoin = sendRequestToEnforcementEngine(purpose, "", authorization,
+      serverConfigFile.policyEnforcementUrl, queryObject)
+
+    if (dataAndProfileGovernedJoin == "") {
+      val errorMessage = "Error in enforcement engine"
+      throw new RequestException(errorMessage)
+    }
+    else {
+      if (serverConfigFile.debugMode) {
+        println("In Query: " + queryObject)
+        println("Query with Enforcement: " + dataAndProfileGovernedJoin)
+      }
+      val spark = DataMovementServer.spark
+      val dataDF = spark.read.parquet(sharedVolumePath);
+      persistCompliantQueryBloodTestsAndProfiles(dataDF, spark, dataAndProfileGovernedJoin)
+    }
+  }
+
+  private def persistCompliantQueryBloodTestsAndProfiles(dataDF: DataFrame, spark: SparkSession, dataAndProfileJoin: String) = {
+    var eeResponse = dataAndProfileJoin.replace("blood_tests_patientId", "blood_tests.patientId")
+    eeResponse = eeResponse.replace("patientsProfiles_patientId", "patientsProfiles.patientId")
+
+    EnforcementEngineResponseProcessor.persistDataBasedOnEEResponse(dataDF, spark, serverConfigFile,
+      eeResponse, QueryImpl.debugMode, serverConfigFile.showDataFrameLength)
+  }
 }

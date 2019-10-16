@@ -1,9 +1,7 @@
 package com.ditas
 
 import com.ditas.configuration.ServerConfiguration
-
-
-import org.apache.spark.sql.{DataFrame, Row, SparkSession}
+import org.apache.spark.sql.{DataFrame, Row, SaveMode, SparkSession}
 import org.slf4j.LoggerFactory
 
 
@@ -68,6 +66,36 @@ object DataFrameUtils {
       LOGGER.info("============= " + sparkName + " ===============")
       tableDF.distinct().show(showDataFrameLength, false)
     }
+  }
+
+  def writeToSparkTable (tableDF: DataFrame, spark: SparkSession, config: ServerConfiguration,
+                         dataConfigName: String, showDataFrameLength: Int, debugMode: Boolean) : Unit = {
+    var sparkName = dataConfigName.toString()
+    LOGGER.info("writeToSparkTable")
+
+    val connInfo = config.getDataTables.get(dataConfigName) + "_mv"
+    val connTypeKey = dataConfigName+"_type"
+    val connType = config.getDataTablesTypes.get(connTypeKey)
+    if (connType.equals("s3a")) {
+      tableDF.write.format("parquet").mode(SaveMode.Append).save(connInfo)
+      LOGGER.info("s3a: " + connInfo)
+    } else if (connType.equals("jdbc")) {
+      //Use jdbc connection:
+      val url = config.getJdbcConfig.get("db.mysql.url")
+      val user = config.getJdbcConfig.get("db.mysql.username")
+      val pass = config.getJdbcConfig.get("db.mysql.password")
+      tableDF.write.format("jdbc").option("url", url).option("dbtable", connInfo).
+        option("user", user).option("password", pass).save()
+      LOGGER.info("jdbc: " + connInfo)
+    } else {
+      LOGGER.error("unrecognized data frame connection type")
+      return
+    }
+    if (debugMode) {
+      LOGGER.info("============= " + sparkName + " ===============")
+      tableDF.distinct().show(showDataFrameLength, false)
+    }
+
   }
 
 }

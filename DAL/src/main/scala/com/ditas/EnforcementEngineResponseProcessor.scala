@@ -52,5 +52,27 @@ object EnforcementEngineResponseProcessor {
   }
 
 
+  def persistDataBasedOnEEResponse (tableDF: DataFrame, spark: SparkSession, config: ServerConfiguration, response: String,
+                                    debugMode: Boolean, showDataFrameLength: Int) = {
+    this.debugMode = debugMode
+    val json: JsValue = Json.parse(response)
 
+    // Set encryption properties for writing the query result
+    val hadoopConfig = spark.sparkContext.hadoopConfiguration
+    val encryptionProperties = (json \ "encryptionProperties").as[List[JsValue]]
+    for (encryptionProperty <- encryptionProperties) {
+      val key = (encryptionProperty \ "key").as[String]
+      val value = (encryptionProperty \ "value").as[String]
+      hadoopConfig.set(key, value)
+    }
+
+    val tables = (json \ "tables").as[List[JsValue]]
+    for (table <- tables) {
+      val tableName = (table \ "name").as[String]
+      if (!tableName.endsWith("_clauses") && !tableName.endsWith("_rules") && !tableName.equals("consents")) {
+        DataFrameUtils.writeToSparkTable(tableDF, spark, config, tableName, showDataFrameLength, debugMode)
+      }
+    }
+
+  }
 }

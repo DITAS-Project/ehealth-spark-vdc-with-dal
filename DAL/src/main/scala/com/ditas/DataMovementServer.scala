@@ -122,13 +122,25 @@ class DataMovementServer(executionContext: ExecutionContext) {
 
 
     override def finishDataMovement(request: FinishDataMovementRequest): Future[FinishDataMovementReply] = {
+      val purpose = request.dalMessageProperties.get.purpose
+      val authorization = request.dalMessageProperties.get.authorization
+      val query = request.query
+      val queryParameters = request.queryParameters
       val sharedVolumePath = request.sharedVolumePath
       val targetDatasource = request.targetDatasource
+      val sourcePrivacyProperties = request.sourcePrivacyProperties
+      val destinationPrivacyProperties = request.destinationPrivacyProperties
+      // TODO decide on parquet properties based on these source and target properties
 
-      val spark = DataMovementServer.spark
-      val dataDF = spark.read.parquet(sharedVolumePath);
-      dataDF.write.mode(SaveMode.Overwrite).parquet(targetDatasource)
-      Future.successful(new FinishDataMovementReply)
+      var response: Future[FinishDataMovementReply] = null
+      try {
+        DataMovementServer.queryImpl.persistQueryResult(query, queryParameters, purpose, authorization, sharedVolumePath)
+        response = Future.successful(new FinishDataMovementReply)
+      } catch {
+        case e: Exception => DataMovementServer.LOGGER.error("Exception in process engine response " + e, e);
+          response = Future.failed(Status.INTERNAL.augmentDescription(e.getMessage).asRuntimeException())
+      }
+      response
     }
 
     def createResponse(resultDF: DataFrame): Future[StartDataMovementReply] = {
