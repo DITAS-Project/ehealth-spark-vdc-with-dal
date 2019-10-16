@@ -186,7 +186,8 @@ class EHealthVDCController @Inject() (config: Configuration, initService: Init, 
       }  else if (socialId.isEmpty ) {
         Future.successful(BadRequest("Missing patient ID "))
       } else {
-          val queryOnJoinTables = "SELECT patientId, birthCity FROM patientsProfiles WHERE socialId='%s'".format(socialId)
+        val queryOnJoinTables = "SELECT addressCity, addressRoad, addressRoadNumber, addressPostalCode, addressTelephoneNumber, birthCity, nationality, job, schoolYears, birthDate, gender," +
+          "name, patientId, socialId, surname FROM patientsProfiles WHERE socialId='%s'".format(socialId)
         try {
           val response: EHealthQueryReply = EHealthClient.query(queryOnJoinTables, Seq(), request.headers("authorization"), request.headers("Purpose"), dalPort, dalURL)
 
