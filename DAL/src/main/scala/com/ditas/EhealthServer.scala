@@ -192,45 +192,40 @@ object EhealthServer {
           }
         }
 
-        println("Start new part - Ety")
-        println(s"query: [${queryObject}]")
+        EhealthServer.LOGGER.info(s"query: [${queryObject}]")
         val query_lower = queryObject.toLowerCase
-        println(s"query lower case: [${query_lower}]")
+        EhealthServer.LOGGER.info(s"query lower case: [${query_lower}]")
         if(query_lower contains "from documents") {
+          EhealthServer.LOGGER.info("Query from documents data source")
           DataFrameUtils.addTableToSpark(spark, ServerConfigFile, "documents",
             ServerConfigFile.showDataFrameLength, debugMode)
           var docDF = spark.sql(queryObject).toDF()
           println(docDF)
           docDF.printSchema
-          println("End of new part - Ety")
-
           val values = docDF.toJSON
-          Future.successful(new EHealthQueryReply(values.collectAsList().asScala))
+          return Future.successful(new EHealthQueryReply(values.collectAsList().asScala))
+        }
+        val dataAndProfileGovernedJoin = sendRequestToEnforcmentEngine(purpose, "", authorizationHeader,
+          EhealthServer.ServerConfigFile.policyEnforcementUrl, queryObject)
+
+        if (dataAndProfileGovernedJoin == "") {
+          Future.failed(Status.ABORTED.augmentDescription("Error in enforcement engine").asRuntimeException())
         }
         else {
-          println("Not query from document. End of new part - Ety")
-          val dataAndProfileGovernedJoin = sendRequestToEnforcmentEngine(purpose, "", authorizationHeader,
-            EhealthServer.ServerConfigFile.policyEnforcementUrl, queryObject)
-
-          if (dataAndProfileGovernedJoin == "") {
-            Future.failed(Status.ABORTED.augmentDescription("Error in enforcement engine").asRuntimeException())
+          if (EhealthServer.ServerConfigFile.debugMode) {
+            println("In Query: " + queryObject)
+            println("Query with Enforcement: " + dataAndProfileGovernedJoin)
           }
-          else {
-            if (EhealthServer.ServerConfigFile.debugMode) {
-              println("In Query: " + queryObject)
-              println("Query with Enforcement: " + dataAndProfileGovernedJoin)
-            }
-            val queryOnJoinedTable = queryObject.replaceAll("blood_tests", "joined");
-            println(s"Query [${queryObject}] becomes [${queryOnJoinedTable}]")
+          val queryOnJoinedTable = queryObject.replaceAll("blood_tests", "joined");
+          println(s"Query [${queryObject}] becomes [${queryOnJoinedTable}]")
 
-            val resultDF = getCompliantBloodTestsAndProfiles(EhealthServer.spark, queryOnJoinedTable, dataAndProfileGovernedJoin)
+          val resultDF = getCompliantBloodTestsAndProfiles(EhealthServer.spark, queryOnJoinedTable, dataAndProfileGovernedJoin)
 
-            if (null != responseParquetPath) {
-              resultDF.write.parquet(responseParquetPath)
-            }
-            val response = createResponse(resultDF)
-            response
+          if (null != responseParquetPath) {
+            resultDF.write.parquet(responseParquetPath)
           }
+          val response = createResponse(resultDF)
+          response
         }
       }
     }
