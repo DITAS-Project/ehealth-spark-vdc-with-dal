@@ -15,32 +15,56 @@ import scala.io.Source
 @RunWith(value = classOf[JUnit4])
 class DataMovementServiceTest {
   val token = Source.fromFile("/home/mayaa/Development/GitHub/DITAS/ehealth-spark-vdc-with-dal/DITASconfigFiles/config_files_for_demo/kc_access_token.txt").getLines().mkString
+  val serverUrl = "localhost"  // = "178.22.71.88"
 
   @Test
   def testStartDataMovement = {
     val query = "SELECT patientId from blood_tests"
     val sharedVolumePath = "./data_to_move.parquet"
 
-    val dalMesssageProperties = new DalMessageProperties("read", "requester",  "Bearer " + token)
+    startDataMovement(query, sharedVolumePath)
+  }
+
+  @Test
+  def testStartDataMovementJDBC = {
+    val query = "SELECT patientId from patientsProfiles"
+    val sharedVolumePath = "./data_to_move_pp.parquet"
+
+    startDataMovement(query, sharedVolumePath)
+  }
+
+  private def startDataMovement(query: String, sharedVolumePath: String) = {
+    val dalMesssageProperties = new DalMessageProperties("read", "requester", "Bearer " + token)
     val sourcePrivacyProperties = None
     val destinationPrivacyProperties = None
     DataMovementClient.startDataMovement(query, sharedVolumePath, Option(dalMesssageProperties), sourcePrivacyProperties,
-      destinationPrivacyProperties, serverPort = 50055, serverUrl = "178.22.71.88")
-
+      destinationPrivacyProperties, serverPort = 50055, serverUrl)
   }
 
   @Test
   def testFinishDataMovement: Unit = {
     val query = "SELECT patientId from blood_tests"
-    val sharedVolumePath = "./"
+    val sharedVolumePath = "./data_to_move.parquet"
 
-    val dalMesssageProperties = new DalMessageProperties("read", "requester",  "Bearer " + token)
+    finishDataMovement(query, sharedVolumePath)
+  }
+
+
+  @Test
+  def testFinishDataMovementJDBC: Unit = {
+    val query = "SELECT patientId from patientsProfiles"
+    val sharedVolumePath = "./data_to_move_pp.parquet"
+
+    finishDataMovement(query, sharedVolumePath)
+  }
+
+  private def finishDataMovement(query: String, sharedVolumePath: String) = {
+    val dalMesssageProperties = new DalMessageProperties("read", "requester", "Bearer " + token)
     val sourcePrivacyProperties = None
     val destinationPrivacyProperties = None
     DataMovementClient.finishDataMovement(query, sharedVolumePath, Option(dalMesssageProperties), sourcePrivacyProperties,
-      destinationPrivacyProperties, serverPort = 50055, serverUrl = "178.22.71.88", targetDataSource = "newBloodTests")
+      destinationPrivacyProperties, serverPort = 50055, serverUrl = serverUrl, targetDataSource = "newBloodTests")
   }
-
 }
 
 
@@ -81,7 +105,7 @@ object DataMovementServiceTest {
 
       val blockingStub = DataMovementServiceGrpc.blockingStub(channel)
       val request = new FinishDataMovementRequest(dalMessageProperties, sourcePrivacyProperties,
-        destinationPrivacyProperties, query, Seq("") , sharedVolumePath + "/data_to_move.parquet", targetDataSource)
+        destinationPrivacyProperties, query, Seq("") , sharedVolumePath, targetDataSource)
       try {
         blockingStub.finishDataMovement(request)
         println(s"Finished data movement from ${sharedVolumePath} to: ${targetDataSource}")
