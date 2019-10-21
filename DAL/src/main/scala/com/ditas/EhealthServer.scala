@@ -25,6 +25,8 @@ object EhealthServer {
     .config("spark.hadoop.fs.s3a.impl", EhealthServer.ServerConfigFile.sparkHadoopF3S3AConfig.get("spark.hadoop.fs.s3a.impl"))
     .config("spark.hadoop.fs.AbstractFileSystem.s3a.impl", EhealthServer.ServerConfigFile.sparkHadoopF3S3AConfig.get("spark.hadoop.fs.AbstractFileSystem.s3a.impl")).getOrCreate()
 
+  lazy val queryImpl = new QueryImpl(spark, ServerConfigFile)
+
   def main(args: Array[String]): Unit = {
     if (args.length < 1) {
       System.err.println("Usage: EhealthServer <configFile>")
@@ -93,9 +95,14 @@ object EhealthServer {
 
     var bloodTestsCompliantDF: DataFrame = null
     try {
-      var eeResponse = response.replace("blood_tests_patientId", "blood_tests.patientId")
-      eeResponse = eeResponse.replace("patientsProfiles_patientId", "patientsProfiles.patientId")
-
+      if (EhealthServer.debugMode) {
+        println("Response before replacement: " + response)
+      }
+      var eeResponse = response.replace("blood_tests_", "blood_tests.").replace("blood_tests.clauses", "blood_tests_clauses")
+      eeResponse = eeResponse.replace("patientsProfiles_", "patientsProfiles.").replace("patientsProfiles.clauses", "patientsProfiles_clauses")
+      if (EhealthServer.debugMode) {
+        println("Response after replacement: " + eeResponse)
+      }
       bloodTestsCompliantDF = EnforcementEngineResponseProcessor.processResponse(spark, EhealthServer.ServerConfigFile,
         eeResponse, EhealthServer.debugMode, EhealthServer.ServerConfigFile.showDataFrameLength)
     } catch {

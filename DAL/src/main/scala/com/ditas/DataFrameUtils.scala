@@ -32,6 +32,10 @@ object DataFrameUtils {
     val connInfo = config.getDataTables.get(dataConfigName)
     val connTypeKey = dataConfigName+"_type"
     val connType = config.getDataTablesTypes.get(connTypeKey)
+    if ((null == connInfo) || (null == connType)) {
+      LOGGER.error("Configuration not found for data source: " + dataConfigName)
+      return spark.emptyDataFrame
+    }
     if (connType.equals("s3a")) {
       var dataDF: DataFrame = null
       dataDF = spark.read.parquet(connInfo)

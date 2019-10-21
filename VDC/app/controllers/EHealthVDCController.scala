@@ -231,6 +231,51 @@ class EHealthVDCController @Inject() (config: Configuration, initService: Init, 
         }
       }
   }
+
+  def getNutritionalData(filter: String)= Action.async {
+    implicit request =>
+      val spark = initService.getSparkSessionInstance
+
+      if (!request.headers.hasHeader("Purpose")) {
+        Future.successful(BadRequest("Missing purpose"))
+      } else if (dalURL.equals("")) {
+        Future.successful(BadRequest("Missing DAL url"))
+      } else if (filter.isEmpty) {
+        Future.successful(BadRequest("Missing patient ID "))
+      } else {
+        val queryOnJoinTables = "SELECT blood_tests.cholesterol_total_value, blood_tests.cholesterol_ldl_value, blood_tests.patientId, " +
+          "patientsProfiles.birthDate, patientsProfiles.gender FROM blood_tests " +
+          "INNER JOIN patientsProfiles ON blood_tests.patientId=patientsProfiles.patientId "  +
+        "LIMIT 5"
+//          "WHERE cholesterol_ldl_value > 100"
+
+        val response: EHealthQueryReply = EHealthClient.query(queryOnJoinTables, Seq(), request.headers("authorization"), request.headers("Purpose"), dalPort, dalURL)
+
+        if (response == "") {
+          Future.successful(InternalServerError("Error in enforcement engine"))
+        }
+        else{
+          import spark.implicits._
+          import org.apache.spark.sql.functions._
+          val responseDF = response.values.toDF()
+          if (debugMode) {
+            println("DAL response: " + response.values.mkString(","))
+            println("ResponseDF: " + responseDF.show(5, false))
+          }
+          val parsedJsonDF = responseDF.select(json_tuple('value, "cholesterol_total_value", "cholesterol_ldl_value", "patientId", "birthDate", "gender"))
+          val newColumns = Seq("cholesterol_total_value", "cholesterol_ldl_value", "patientId", "birthDate", "gender")
+          val df = parsedJsonDF.toDF(newColumns:_*)
+          val valuesDF = df.select($"birthDate", $"gender", floor($"cholesterol_total_value" / 5 + 20) as "bmi", $"cholesterol_total_value" )
+          if (debugMode) {
+            println("Average: ")
+            valuesDF.show(5)
+          }
+          val resultStr = valuesDF.toJSON.collect().mkString("[", ",", "]")
+
+          Future.successful(Ok(resultStr))
+        }
+      }
+  }
 }
 
 

@@ -59,9 +59,15 @@ class QueryImpl(spark: SparkSession, configFile: ServerConfiguration) {
 
     var bloodTestsCompliantDF: DataFrame = null
     try {
-      var eeResponse = response.replace("blood_tests_patientId", "blood_tests.patientId")
-      eeResponse = eeResponse.replace("patientsProfiles_patientId", "patientsProfiles.patientId")
+      if (QueryImpl.debugMode) {
+        println("response before replacement: " + response)
+      }
+      var eeResponse = response.replace("blood_tests_", "blood_tests.")
+      eeResponse = eeResponse.replace("patientsProfiles_", "patientsProfiles.")
 
+      if (QueryImpl.debugMode) {
+        println("response after replacement: " + eeResponse)
+      }
       bloodTestsCompliantDF = EnforcementEngineResponseProcessor.processResponse(spark, serverConfigFile,
         eeResponse, QueryImpl.debugMode, serverConfigFile.showDataFrameLength)
     } catch {
@@ -184,8 +190,8 @@ class QueryImpl(spark: SparkSession, configFile: ServerConfiguration) {
   }
 
   private def persistCompliantQueryBloodTestsAndProfiles(dataDF: DataFrame, spark: SparkSession, dataAndProfileJoin: String) = {
-    var eeResponse = dataAndProfileJoin.replace("blood_tests_patientId", "blood_tests.patientId")
-    eeResponse = eeResponse.replace("patientsProfiles_patientId", "patientsProfiles.patientId")
+    var eeResponse = dataAndProfileJoin.replace("blood_tests_", "blood_tests.").replace("blood_tests.clauses", "blood_tests_clauses")
+    eeResponse = eeResponse.replace("patientsProfiles_", "patientsProfiles.").replace("patientsProfiles.clauses", "patientsProfiles_clauses")
 
     EnforcementEngineResponseProcessor.persistDataBasedOnEEResponse(dataDF, spark, serverConfigFile,
       eeResponse, QueryImpl.debugMode, serverConfigFile.showDataFrameLength)
