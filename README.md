@@ -18,6 +18,8 @@ This is being developed for the DITAS Project: https://www.ditas-project.eu/
 # ehealth-spark-vdc-with-dal
 VDC + DAL implemented using Scala Spark for e-Health sample usecase.
 
+See individual README.md files of of DAL and VDC projects to understand how to deploy them.
+
 ## VDC
 VDC implemented using Scala Spark for e-Health sample usecase
 
@@ -28,4 +30,3 @@ This library contains the API (protobuf) for VDC-DAL grpc communication.
 ## DAL
 DAL implemented using Scala Spark for e-Health sample usecase
 
-See individual README.md files of of DAL and VDC projects to understand how to deploy them.
