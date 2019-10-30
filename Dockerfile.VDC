@@ -1,0 +1,31 @@
+FROM emanuelehsr/sbt:8u212-1.3.3 AS BUILD_PROTO
+
+WORKDIR /app/
+
+COPY VDC-DAL-grpc/ ./
+
+RUN sbt assembly
+
+FROM emanuelehsr/sbt:8u212-1.3.3 AS BUILD_VDC
+
+WORKDIR /app/
+
+COPY VDC/ ./
+
+COPY --from=BUILD_PROTO /app/target/scala-2.11/vdc-dal-grpc-assembly-0.1.jar /app/lib/vdc-dal-grpc-assembly-0.1.jar
+
+RUN sbt universal:packageZipTarball
+
+RUN mkdir /app/dist
+
+RUN tar xvfz ./target/universal/ehealth-sample-spark-vdc-1.0.tgz --directory /app/dist
+
+FROM openjdk:8u212
+
+COPY --from=BUILD_VDC /app/dist /app/dist
+
+COPY ehealth-vdc-run.sh /app/ehealth-vdc-run.sh
+
+RUN chmod +x /app/ehealth-vdc-run.sh
+
+CMD ["/app/ehealth-vdc-run.sh"]

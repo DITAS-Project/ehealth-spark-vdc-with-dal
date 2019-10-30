@@ -1,22 +1,22 @@
 debugMode: true
 sparkHadoopF3S3AConfig:
- spark.hadoop.fs.s3a.endpoint: "http://MINIO:9000"
- spark.hadoop.fs.s3a.access.key: "ACCESS_KEY"
- spark.hadoop.fs.s3a.secret.key: "SECRET_KEY"
+ spark.hadoop.fs.s3a.endpoint: "#{MINIO_URI}"
+ spark.hadoop.fs.s3a.access.key: "#{MINIO_ACCESS_KEY}"
+ spark.hadoop.fs.s3a.secret.key: "#{MINIO_SECRET_KEY}"
  spark.hadoop.fs.s3a.path.style.access: "true"
  spark.hadoop.fs.s3a.impl: "org.apache.hadoop.fs.s3a.S3AFileSystem"
  spark.hadoop.fs.AbstractFileSystem.s3a.impl: "org.apache.hadoop.fs.s3a.S3A"
  s3.filename: "s3a://ditas.dummy-example/ditas-blood-tests.parquet"
 
 jdbcConfig:
- db.mysql.url: "jdbc:mysql://31.171.247.90/ditas_dummy_example?autoReconnect=true&useSSL=false"
- db.mysql.username: "USERNAME"
- db.mysql.password: "PASSWORD"
+ db.mysql.url: "#{MYSQL_URI}"
+ db.mysql.username: "#{MYSQL_USERNAME}"
+ db.mysql.password: "#{MYSQL_PASSWORD}"
 
-policyEnforcementUrl: "http://IP:PORT/rewrite-sql-query"
+policyEnforcementUrl: "#{POLICY_ENFORCEMENT_URI}"
 
 jwtServerTimeout: 5000 #milliseconds
-jwksServerEndpoint: https://153.92.30.56:58080/auth/realms/288/protocol/openid-connect/certs
+jwksServerEndpoint: "#{KEYCLOAK_PUBLIC_KEY_URI}"
 jwksCheckServerCertificate: false
 
 showDataFrameLength: 10

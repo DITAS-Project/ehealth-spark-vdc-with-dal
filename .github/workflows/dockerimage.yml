@@ -1,0 +1,35 @@
+name: Docker Build Push
+
+on: [push]
+
+jobs:
+  dal:
+    name: Build Push DAL
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v1
+      - name: Docker Login
+        run: echo "${{ secrets.DITAS_DOCKER_REGISTRY_PASSWORD }}" | docker login -u ${{ secrets.DITAS_DOCKER_REGISTRY_USERNAME }} --password-stdin
+      - name: Docker Build
+        run: docker build -f Dockerfile.DAL -t ditas/ehealth-dal:${GITHUB_SHA:0:8} .
+      - name: Docker Push
+        run: docker push ditas/ehealth-dal:${GITHUB_SHA:0:8}
+      - name: Docker Tag Latest
+        run: docker tag ditas/ehealth-dal:${GITHUB_SHA:0:8} ditas/ehealth-dal:latest
+      - name: Docker Push Latest
+        run: docker push ditas/ehealth-dal:latest
+  vdc:
+    name: Build Push VDC
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v1
+      - name: Docker Login
+        run: echo "${{ secrets.DITAS_DOCKER_REGISTRY_PASSWORD }}" | docker login -u ${{ secrets.DITAS_DOCKER_REGISTRY_USERNAME }} --password-stdin
+      - name: Docker Build
+        run: docker build -f Dockerfile.VDC -t ditas/ehealth-vdc:${GITHUB_SHA:0:8} .
+      - name: Docker Push
+        run: docker push ditas/ehealth-vdc:${GITHUB_SHA:0:8}
+      - name: Docker Tag Latest
+        run: docker tag ditas/ehealth-vdc:${GITHUB_SHA:0:8} ditas/ehealth-vdc:latest
+      - name: Docker Push Latest
+        run: docker push ditas/ehealth-vdc:latest
