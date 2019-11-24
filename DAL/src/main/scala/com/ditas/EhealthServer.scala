@@ -2,6 +2,8 @@ package com.ditas
 
 
 import com.ditas.configuration.ServerConfiguration
+import com.ditas.ehealth.DalPrivacyProperties.DalPrivacyProperties
+import com.ditas.ehealth.DalPrivacyProperties.DalPrivacyProperties.PrivacyZone
 import com.ditas.ehealth.EHealthService.{EHealthQueryReply, EHealthQueryRequest, EHealthQueryServiceGrpc}
 import com.ditas.utils.{JwtValidator, UtilFunctions}
 import io.grpc._
@@ -24,6 +26,9 @@ object EhealthServer {
     .config("spark.hadoop.fs.s3a.path.style.access", EhealthServer.ServerConfigFile.sparkHadoopF3S3AConfig.get("spark.hadoop.fs.s3a.path.style.access"))
     .config("spark.hadoop.fs.s3a.impl", EhealthServer.ServerConfigFile.sparkHadoopF3S3AConfig.get("spark.hadoop.fs.s3a.impl"))
     .config("spark.hadoop.fs.AbstractFileSystem.s3a.impl", EhealthServer.ServerConfigFile.sparkHadoopF3S3AConfig.get("spark.hadoop.fs.AbstractFileSystem.s3a.impl")).getOrCreate()
+
+  val DEFAULT_PUBLIC_PRIVACY_PROPERTIES = new DalPrivacyProperties(PrivacyZone.PUBLIC)
+
 
   lazy val queryImpl = new QueryImpl(spark, ServerConfigFile)
 
@@ -94,7 +99,7 @@ object EhealthServer {
   private def createDataAndProfileJoinDataFrame(spark: SparkSession, response: String): Boolean = {
 
     var bloodTestsCompliantDF: DataFrame = null
-    try {
+//    try {
       if (EhealthServer.debugMode) {
         println("Response before replacement: " + response)
       }
@@ -105,10 +110,10 @@ object EhealthServer {
       }
       bloodTestsCompliantDF = EnforcementEngineResponseProcessor.processResponse(spark, EhealthServer.ServerConfigFile,
         eeResponse, EhealthServer.debugMode, EhealthServer.ServerConfigFile.showDataFrameLength)
-    } catch {
-      case e: Exception => EhealthServer.LOGGER.error("Exception in process engine response " + e, e);
-        return false
-    }
+//    } catch {
+//      case e: Exception => EhealthServer.LOGGER.error("Exception in process engine response " + e, e);
+//        return false
+//    }
     if (bloodTestsCompliantDF == spark.emptyDataFrame)
       return false
 
@@ -144,7 +149,7 @@ object EhealthServer {
       return spark.emptyDataFrame
     }
 
-    var patientBloodTestsDF = spark.sql(queryOnJoinedTable).toDF().filter(row => UtilFunctions.anyNotNull(row))
+    var patientBloodTestsDF = spark.sql("select * from joined").toDF().filter(row => UtilFunctions.anyNotNull(row))
     //    var patientBloodTestsDF = spark.sql(query).toDF()
     if (EhealthServer.debugMode) {
       println(queryOnJoinedTable)
@@ -169,12 +174,14 @@ object EhealthServer {
 
     def internalQuery(request: EHealthQueryRequest, responseParquetPath: String): Future[EHealthQueryReply] = {
 
-      val queryObject = request.query
+      var queryObject = request.query
       val queryParameters = request.queryParameters
       val purpose = request.dalMessageProperties.get.purpose
       val authorization = request.dalMessageProperties.get.authorization
 
-      def logAndReturnError(errorMessage: String) = {
+      var dalPrivacyZone = request.dalPrivacyProperties.getOrElse(DEFAULT_PUBLIC_PRIVACY_PROPERTIES).privacyZone
+
+           def logAndReturnError(errorMessage: String) = {
         EhealthServer.LOGGER.error(errorMessage)
         Future.failed(Status.ABORTED.augmentDescription(errorMessage).asRuntimeException())
       }
@@ -198,6 +205,34 @@ object EhealthServer {
             return Future.failed(Status.UNAUTHENTICATED.augmentDescription(e.getMessage).asRuntimeException())
           }
         }
+
+        //ETY:
+        if (EhealthServer.ServerConfigFile.debugMode) {
+          //TEST:
+          dalPrivacyZone = new DalPrivacyProperties(PrivacyZone.PRIVATE).privacyZone
+          println("Changed privacy mode for test to " + dalPrivacyZone.toString())
+        }
+
+        //ssn is cahed in private cloud. NOTICE: the exact string search, any whitespace can ruin it!
+        if(dalPrivacyZone.toString() == "PRIVATE" && queryObject.contains("socialId='")) {
+          val beginSSN = queryObject.indexOf("socialId='")+"socialId=".length
+          val endSSN = queryObject.indexOf("'", beginSSN+1)+1
+          val SSN = queryObject.substring(beginSSN, endSSN)
+          queryObject = queryObject.substring(0, beginSSN)+"hash("+SSN + ")" + queryObject.substring(endSSN, queryObject.length)
+
+          if (EhealthServer.ServerConfigFile.debugMode) {
+            println("HASH(SSN) rewrite query! " + beginSSN, "   ", endSSN, "   ", SSN)
+            println("Query with hash: " + queryObject)
+          }
+        }
+
+
+        if(dalPrivacyZone.toString() == "PUBLIC" &&  queryObject.contains("INNER JOIN patientsProfiles ON blood_tests.patientId=patientsProfiles.patientId")){
+          val queryOnJoined = queryObject.replace("INNER JOIN patientsProfiles ON blood_tests.patientId=patientsProfiles.patientId", "" )
+          println("Query on public cloud joined blood_tests, rewritten query: ", queryOnJoined)
+          queryObject=queryOnJoined
+        }
+        ///////////
 
         EhealthServer.LOGGER.info(s"query: [${queryObject}]")
         val query_lower = queryObject.toLowerCase

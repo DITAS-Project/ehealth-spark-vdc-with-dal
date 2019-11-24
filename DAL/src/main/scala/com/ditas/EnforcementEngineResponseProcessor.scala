@@ -28,6 +28,7 @@ object EnforcementEngineResponseProcessor {
     }
     val newQuery = (json \ "rewrittenQuery").validate[String]
     query = newQuery.get
+//    query = "SELECT blood_tests.*, patientsProfiles.gender, year(patientsProfiles.birthDate) AS birthDate FROM blood_tests INNER JOIN patientsProfiles ON patientsProfiles.patientId=blood_tests.patientId"
     if (debugMode) {
       println("the re-written query: " + newQuery.get)
     }

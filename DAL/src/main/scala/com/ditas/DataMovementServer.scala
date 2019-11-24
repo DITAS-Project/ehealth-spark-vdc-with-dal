@@ -1,6 +1,8 @@
 package com.ditas
 
 import com.ditas.configuration.ServerConfiguration
+import com.ditas.ehealth.DalPrivacyProperties.DalPrivacyProperties
+import com.ditas.ehealth.DalPrivacyProperties.DalPrivacyProperties.PrivacyZone
 import com.ditas.ehealth.DataMovementService._
 import com.ditas.utils.UtilFunctions
 import io.grpc.{Server, ServerBuilder, Status}
@@ -98,20 +100,55 @@ class DataMovementServer(executionContext: ExecutionContext) {
 
 
   private class DataMovementServiceImpl extends DataMovementServiceGrpc.DataMovementService {
+    val DEFAULT_PUBLIC_PRIVACY_PROPERTIES = new DalPrivacyProperties(PrivacyZone.PUBLIC)
+
     override def startDataMovement(request: StartDataMovementRequest): Future[StartDataMovementReply] = {
 
-      val purpose = request.dalMessageProperties.get.purpose
+      var purpose = request.dalMessageProperties.get.purpose
       val authorization = request.dalMessageProperties.get.authorization
-      val query = request.query
+      var query = request.query
       val queryParameters = request.queryParameters
       val sharedVolumePath = request.sharedVolumePath
-      val sourcePrivacyProperties = request.sourcePrivacyProperties
-      val destinationPrivacyProperties = request.destinationPrivacyProperties
-      // TODO decide on parquet properties based on these source and target properties
+      val sourcePrivacyZone = request.sourcePrivacyProperties.getOrElse(DEFAULT_PUBLIC_PRIVACY_PROPERTIES).privacyZone
+      val destinationPrivacyZone = request.destinationPrivacyProperties.getOrElse(DEFAULT_PUBLIC_PRIVACY_PROPERTIES).privacyZone
+
+      // MAYA
+      val accessType = "read" //getAccessType(sourcePrivacyZone, destinationPrivacyZone)
+      //ETY:
+      if(purpose.equalsIgnoreCase("data_movement_public_cloud") && query.toLowerCase.startsWith("select * from blood_tests")) {
+        //need to do join.
+        //assume the query is : SELECT * FROM blood_tests WHERE ..."
+
+        val bloodtests_col =
+          """
+            |blood_tests.category, blood_tests.prothrombinTime_unit, blood_tests.cholesterol_hdl_value, blood_tests.totalWhiteCellCount_unit, blood_tests.fibrinogen_normalRange, blood_tests.antithrombin_value, blood_tests.fibrinogen_unit, blood_tests.haemoglobin_value, blood_tests.antithrombin_unit,
+            |                  blood_tests.cholesterol_hdl_unit, blood_tests.cholesterol_hdl_normalRange,  blood_tests.cholesterol_ldl_normalRange, blood_tests.bmi, blood_tests.antithrombin_normalRange,blood_tests.totalWhiteCellCount_normalRange, blood_tests.fibrinogen_value,
+            |                  blood_tests.cholesterol_ldl_value, blood_tests.plateletCount_value, blood_tests.cholesterol_total_normalRange,blood_tests.cholesterol_tryglicerides_normalRange, blood_tests.totalWhiteCellCount_value, blood_tests.date, blood_tests.cholesterol_ldl_unit,
+            |                  blood_tests.haemoglobin_unit, blood_tests.prothrombinTime_value, blood_tests.cholesterol_tryglicerides_unit, blood_tests.plateletCount_unit, blood_tests.cholesterol_total_value,blood_tests.haemoglobin_normalRange, blood_tests.prothrombinTime_normalRange,
+            |                  blood_tests.cholesterol_tryglicerides_value,blood_tests.cholesterol_total_unit
+            |
+            |""".stripMargin
+        val all_cols = "  0 AS patientId, patientsProfiles.gender, year(patientsProfiles.birthDate) AS birthDate,  " + bloodtests_col
+
+        val where_filter =  if(query.toLowerCase.contains("where"))  " AND (" + query.slice(query.toLowerCase().indexOf("where") + 5, query.length) + ") "  else ""
+
+        val IDsTbl = " (SELECT DISTINCT blood_tests.patientId FROM blood_tests WHERE blood_tests.stroke==1) "
+        val joinedTbl = "blood_tests INNER JOIN patientsProfiles ON patientsProfiles.patientId=blood_tests.patientId"
+
+        query = "(SELECT    0 as stroke, " + all_cols + "  FROM " + joinedTbl + " WHERE   blood_tests.category==\'blood_test\' AND (blood_tests.patientId NOT IN " + IDsTbl + ") "+  where_filter  + ")" +
+          " UNION " +
+          "(SELECT     1 as stroke, " + all_cols + "  FROM " + joinedTbl + " WHERE   blood_tests.category==\'blood_test\' AND (blood_tests.patientId  IN " + IDsTbl + ") "+  where_filter  + ")"
+
+
+        purpose="Research"
+        System.err.println("**********ETY ****************:  data_movement_public_cloud")
+        System.err.println(query)
+        System.err.println("purpose changed! " + purpose)
+      }
 
       var response: Future[StartDataMovementReply] = null
       try {
-        val resultDF: DataFrame = DataMovementServer.queryImpl.internalQuery(query, queryParameters, purpose, authorization, sharedVolumePath)
+        val resultDF: DataFrame = DataMovementServer.queryImpl.internalQuery(query, queryParameters, purpose, accessType, authorization, sharedVolumePath)
         response = createResponse(resultDF)
       } catch {
         case e: Exception => DataMovementServer.LOGGER.error("Exception in process engine response " + e, e);
@@ -120,6 +157,10 @@ class DataMovementServer(executionContext: ExecutionContext) {
       response
     }
 
+    // MAYA
+    private def getAccessType(sourcePrivacyZone: PrivacyZone, destinationPrivacyZone: PrivacyZone) = {
+      "read_" + sourcePrivacyZone.toString() + "_" + destinationPrivacyZone.toString()
+    }
 
     override def finishDataMovement(request: FinishDataMovementRequest): Future[FinishDataMovementReply] = {
       val purpose = request.dalMessageProperties.get.purpose
@@ -128,13 +169,14 @@ class DataMovementServer(executionContext: ExecutionContext) {
       val queryParameters = request.queryParameters
       val sharedVolumePath = request.sharedVolumePath
       val targetDatasource = request.targetDatasource
-      val sourcePrivacyProperties = request.sourcePrivacyProperties
-      val destinationPrivacyProperties = request.destinationPrivacyProperties
-      // TODO decide on parquet properties based on these source and target properties
+      val sourcePrivacyZone = request.sourcePrivacyProperties.getOrElse(DEFAULT_PUBLIC_PRIVACY_PROPERTIES).privacyZone
+      val destinationPrivacyZone = request.destinationPrivacyProperties.getOrElse(DEFAULT_PUBLIC_PRIVACY_PROPERTIES).privacyZone
+
+      val accessType = "read" //getAccessType(sourcePrivacyZone, destinationPrivacyZone)
 
       var response: Future[FinishDataMovementReply] = null
       try {
-        DataMovementServer.queryImpl.persistQueryResult(query, queryParameters, purpose, authorization, sharedVolumePath)
+        DataMovementServer.queryImpl.persistQueryResult(query, queryParameters, purpose, accessType, authorization, sharedVolumePath)
         response = Future.successful(new FinishDataMovementReply)
       } catch {
         case e: Exception => DataMovementServer.LOGGER.error("Exception in process engine response " + e, e);

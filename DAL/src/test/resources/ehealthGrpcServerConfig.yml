@@ -19,7 +19,7 @@ jwtServerTimeout: 5000 #milliseconds
 jwksServerEndpoint: "#{KEYCLOAK_PUBLIC_KEY_URI}"
 jwksCheckServerCertificate: false
 
-showDataFrameLength: 10
+showDataFrameLength: 20
 
 dataTables:
  blood_tests: "s3a://ditas.dummy-example/blood-tests-10000.parquet"

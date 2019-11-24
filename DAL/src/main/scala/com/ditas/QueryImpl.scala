@@ -1,5 +1,6 @@
 package com.ditas
 
+import com.ditas.EnforcementEngineResponseProcessor.query
 import com.ditas.configuration.ServerConfiguration
 import com.ditas.utils.{JwtValidator, UtilFunctions}
 import io.grpc._
@@ -15,7 +16,7 @@ import scala.concurrent.{ExecutionContext, Future}
 
 object QueryImpl {
   private val LOGGER = LoggerFactory.getLogger(classOf[QueryImpl])
-  private var debugMode = false
+  private var debugMode = true
 
   private var validRoles: mutable.Buffer[String] = ArrayBuffer("*")
 }
@@ -24,8 +25,7 @@ class QueryImpl(spark: SparkSession, configFile: ServerConfiguration) {
   private var serverConfigFile: ServerConfiguration = configFile
   private val jwtValidation = new JwtValidator(serverConfigFile)
 
-  def sendRequestToEnforcementEngine(purpose: String, requesterId: String, authorizationHeader: String, enforcementEngineURL: String,
-                                     query: String): String = {
+  def sendRequestToEnforcementEngine(purpose: String, accessType: String, requesterId: String, authorizationHeader: String, enforcementEngineURL: String, query: String): String = {
     val data = Json.obj(
       "query" -> query,
       "purpose" -> purpose,
@@ -34,6 +34,8 @@ class QueryImpl(spark: SparkSession, configFile: ServerConfiguration) {
       "blueprintId" -> "",
       "requesterId" -> requesterId
     )
+
+    println("REQUST TO EE: " + data)
 
     val inf = 1000000
 
@@ -82,6 +84,7 @@ class QueryImpl(spark: SparkSession, configFile: ServerConfiguration) {
     if (QueryImpl.debugMode) {
       println("===========" + "JOINED bloodTests and profiles" + "===========")
       bloodTestsCompliantDF.distinct().show(serverConfigFile.showDataFrameLength, false)
+
     }
     return true
 
@@ -94,10 +97,15 @@ class QueryImpl(spark: SparkSession, configFile: ServerConfiguration) {
       return spark.emptyDataFrame
     }
 
-    var patientBloodTestsDF = spark.sql(queryOnJoinedTable).toDF().filter(row => UtilFunctions.anyNotNull(row))
+
+
+    //ETY:
+    var patientBloodTestsDF = spark.sql("SELECT * from joined").toDF()
+//    var patientBloodTestsDF = spark.sql(queryOnJoinedTable).toDF().filter(row => UtilFunctions.anyNotNull(row))
     //    var patientBloodTestsDF = spark.sql(query).toDF()
     if (QueryImpl.debugMode) {
       println(queryOnJoinedTable)
+      println("size:  " + patientBloodTestsDF.collect().size)
       patientBloodTestsDF.distinct().show(serverConfigFile.showDataFrameLength, false)
       patientBloodTestsDF.printSchema
       patientBloodTestsDF.explain(true)
@@ -106,9 +114,12 @@ class QueryImpl(spark: SparkSession, configFile: ServerConfiguration) {
   }
 
 
-  def internalQuery(queryObject: String, queryParameters: Seq[String], purpose: String, authorization: String, responseParquetPath: String): DataFrame = {
+  def internalQuery(queryObject: String, queryParameters: Seq[String], purpose: String, accessType: String, authorization: String, responseParquetPath: String): DataFrame = {
 
     if (purpose.isEmpty) {
+      val errorMessage = "Missing purpose"
+      throw new RequestException(errorMessage)
+    } else if (accessType.isEmpty) {
       val errorMessage = "Missing purpose"
       throw new RequestException(errorMessage)
     } else if (authorization.isEmpty) {
@@ -127,8 +138,8 @@ class QueryImpl(spark: SparkSession, configFile: ServerConfiguration) {
       }
     }
 
-    val dataAndProfileGovernedJoin = sendRequestToEnforcementEngine(purpose, "", authorization,
-      serverConfigFile.policyEnforcementUrl, queryObject)
+
+    val dataAndProfileGovernedJoin = sendRequestToEnforcementEngine(purpose, accessType, "", authorization, serverConfigFile.policyEnforcementUrl, queryObject)
 
     if (dataAndProfileGovernedJoin == "") {
       val errorMessage = "Error in enforcement engine"
@@ -151,8 +162,7 @@ class QueryImpl(spark: SparkSession, configFile: ServerConfiguration) {
     }
   }
 
-  def persistQueryResult(queryObject: String, queryParameters: Seq[String], purpose: String, authorization: String,
-                         sharedVolumePath: String) = {
+  def persistQueryResult(queryObject: String, queryParameters: Seq[String], purpose: String, accessType: String, authorization: String, sharedVolumePath: String): Unit = {
     if (purpose.isEmpty) {
       val errorMessage = "Missing purpose"
       throw new RequestException(errorMessage)
@@ -171,8 +181,7 @@ class QueryImpl(spark: SparkSession, configFile: ServerConfiguration) {
         throw e
       }
     }
-    val dataAndProfileGovernedJoin = sendRequestToEnforcementEngine(purpose, "", authorization,
-      serverConfigFile.policyEnforcementUrl, queryObject)
+    val dataAndProfileGovernedJoin = sendRequestToEnforcementEngine(purpose, accessType, "", authorization, serverConfigFile.policyEnforcementUrl, queryObject)
 
     if (dataAndProfileGovernedJoin == "") {
       val errorMessage = "Error in enforcement engine"

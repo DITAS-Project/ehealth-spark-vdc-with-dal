@@ -118,8 +118,8 @@ class EHealthVDCController @Inject() (config: Configuration, initService: Init, 
       val queryObject = testType
       var avgTestType:String = null
       val todayDate =  java.time.LocalDate.now
-      val minBirthDate = todayDate.minusYears(endAgeRange)
-      val maxBirthDate = todayDate.minusYears(startAgeRange)
+      val minBirthDate = todayDate.minusYears(endAgeRange).getYear()
+      val maxBirthDate = todayDate.minusYears(startAgeRange).getYear()
 
       if (!request.headers.hasHeader("Purpose")) {
         Future.successful(BadRequest("Missing purpose"))
@@ -142,8 +142,8 @@ class EHealthVDCController @Inject() (config: Configuration, initService: Init, 
         } else {
           flatTestType = "%s_value".format(testType)
         }
-        val queryOnJoinTables = "SELECT " + flatTestType + ", blood_tests.patientId FROM blood_tests INNER JOIN patientsProfiles ON blood_tests.patientId=patientsProfiles.patientId where " +
-          "birthDate > \"" + minBirthDate + "\" AND birthDate < \"" + maxBirthDate + "\""
+        val queryOnJoinTables = "SELECT " + flatTestType + ", blood_tests.patientId FROM blood_tests INNER JOIN patientsProfiles ON blood_tests.patientId=patientsProfiles.patientId " +
+          "WHERE birthDate > \"" + minBirthDate + "\" AND birthDate < \"" + maxBirthDate + "\""
 
         val response: EHealthQueryReply = EHealthClient.query(queryOnJoinTables, Seq(), request.headers("authorization"), request.headers("Purpose"), dalPort, dalURL)
 
@@ -187,7 +187,7 @@ class EHealthVDCController @Inject() (config: Configuration, initService: Init, 
         Future.successful(BadRequest("Missing patient ID "))
       } else {
         val queryOnJoinTables = "SELECT addressCity, addressRoad, addressRoadNumber, addressPostalCode, addressTelephoneNumber, birthCity, nationality, job, schoolYears, birthDate, gender," +
-          "name, patientId, socialId, surname FROM patientsProfiles WHERE socialId='%s'".format(socialId)
+          "name, patientId, socialId, surname FROM patientsProfiles" // WHERE socialId='%s'".format(socialId)
         try {
           val response: EHealthQueryReply = EHealthClient.query(queryOnJoinTables, Seq(), request.headers("authorization"), request.headers("Purpose"), dalPort, dalURL)
 
@@ -243,11 +243,12 @@ class EHealthVDCController @Inject() (config: Configuration, initService: Init, 
       } else if (filter.isEmpty) {
         Future.successful(BadRequest("Missing patient ID "))
       } else {
-        val queryOnJoinTables = "SELECT blood_tests.cholesterol_total_value, blood_tests.cholesterol_ldl_value, blood_tests.patientId, " +
-          "patientsProfiles.birthDate, patientsProfiles.gender FROM blood_tests " +
-          "INNER JOIN patientsProfiles ON blood_tests.patientId=patientsProfiles.patientId "  +
-        "LIMIT 5"
-//          "WHERE cholesterol_ldl_value > 100"
+        val queryOnJoinTables = "SELECT blood_tests.cholesterol_total_value, blood_tests.cholesterol_ldl_value, blood_tests.patientId, blood_tests.bmi,  blood_tests.category, birthDate, gender " +
+          "FROM blood_tests INNER JOIN patientsProfiles ON blood_tests.patientId=patientsProfiles.patientId " +
+          "WHERE  blood_tests.category=='blood_test' AND blood_tests.patientId IN (SELECT DISTINCT blood_tests.patientId FROM blood_tests WHERE blood_tests.stroke==1) LIMIT 20"
+
+//        val queryOnJoinTables = "Select * FROM blood_tests LIMIT 10"
+        // blood_tests.stroke,
 
         val response: EHealthQueryReply = EHealthClient.query(queryOnJoinTables, Seq(), request.headers("authorization"), request.headers("Purpose"), dalPort, dalURL)
 
@@ -262,15 +263,7 @@ class EHealthVDCController @Inject() (config: Configuration, initService: Init, 
             println("DAL response: " + response.values.mkString(","))
             println("ResponseDF: " + responseDF.show(5, false))
           }
-          val parsedJsonDF = responseDF.select(json_tuple('value, "cholesterol_total_value", "cholesterol_ldl_value", "patientId", "birthDate", "gender"))
-          val newColumns = Seq("cholesterol_total_value", "cholesterol_ldl_value", "patientId", "birthDate", "gender")
-          val df = parsedJsonDF.toDF(newColumns:_*)
-          val valuesDF = df.select($"birthDate", $"gender", floor($"cholesterol_total_value" / 5 + 20) as "bmi", $"cholesterol_total_value" )
-          if (debugMode) {
-            println("Average: ")
-            valuesDF.show(5)
-          }
-          val resultStr = valuesDF.toJSON.collect().mkString("[", ",", "]")
+          val resultStr = responseDF.toJSON.collect().mkString("[", ",", "]")
 
           Future.successful(Ok(resultStr))
         }
