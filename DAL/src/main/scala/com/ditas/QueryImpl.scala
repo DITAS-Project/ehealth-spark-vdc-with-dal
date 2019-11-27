@@ -79,7 +79,6 @@ class QueryImpl(spark: SparkSession, configFile: ServerConfiguration) {
     if (bloodTestsCompliantDF == spark.emptyDataFrame)
       return false
 
-
     bloodTestsCompliantDF.createOrReplaceTempView("joined")
     if (QueryImpl.debugMode) {
       println("===========" + "JOINED bloodTests and profiles" + "===========")
@@ -87,24 +86,16 @@ class QueryImpl(spark: SparkSession, configFile: ServerConfiguration) {
 
     }
     return true
-
   }
 
-  private def getCompliantBloodTestsAndProfiles(spark: SparkSession, queryOnJoinedTable: String,
-                                                dataAndProfileJoin: String): DataFrame = {
+  private def getCompliantBloodTestsAndProfiles(spark: SparkSession, dataAndProfileJoin: String): DataFrame = {
     if (!createDataAndProfileJoinDataFrame(spark, dataAndProfileJoin)) {
       QueryImpl.LOGGER.info("Error in createDataAndProfileJoinDataFrame")
       return spark.emptyDataFrame
     }
-
-
-
-    //ETY:
-    var patientBloodTestsDF = spark.sql("SELECT * from joined").toDF()
-//    var patientBloodTestsDF = spark.sql(queryOnJoinedTable).toDF().filter(row => UtilFunctions.anyNotNull(row))
-    //    var patientBloodTestsDF = spark.sql(query).toDF()
+    val patientBloodTestsDF = spark.sql("SELECT * from joined").toDF()
     if (QueryImpl.debugMode) {
-      println(queryOnJoinedTable)
+      println("Joined table:")
       println("size:  " + patientBloodTestsDF.collect().size)
       patientBloodTestsDF.distinct().show(serverConfigFile.showDataFrameLength, false)
       patientBloodTestsDF.printSchema
@@ -153,7 +144,7 @@ class QueryImpl(spark: SparkSession, configFile: ServerConfiguration) {
       val queryOnJoinedTable = queryObject.replaceAll("blood_tests", "joined");
       println(s"Query [${queryObject}] becomes [${queryOnJoinedTable}]")
 
-      val resultDF = getCompliantBloodTestsAndProfiles(spark, queryOnJoinedTable, dataAndProfileGovernedJoin)
+      val resultDF = getCompliantBloodTestsAndProfiles(spark, dataAndProfileGovernedJoin)
 
       if (null != responseParquetPath) {
         resultDF.write.mode(SaveMode.Overwrite).parquet(responseParquetPath)

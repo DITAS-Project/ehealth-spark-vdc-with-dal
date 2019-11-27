@@ -36,6 +36,7 @@ class Init @Inject() (lifecycle: ApplicationLifecycle, config: Configuration) {
     .master(config.get[String]("spark.master"))
     .appName(config.get[String]("spark.app.name"))
     .config("spark.sql.shuffle.partitions", config.get[String]("spark.sql.shuffle.partitions"))
+    .config("spark.ui.enabled", false)
     .getOrCreate()
 
   private var debugMode = false

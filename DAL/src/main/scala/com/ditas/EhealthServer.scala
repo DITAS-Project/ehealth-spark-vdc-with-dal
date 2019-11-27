@@ -25,7 +25,9 @@ object EhealthServer {
     .config("spark.hadoop.fs.s3a.secret.key", EhealthServer.ServerConfigFile.sparkHadoopF3S3AConfig.get("spark.hadoop.fs.s3a.secret.key"))
     .config("spark.hadoop.fs.s3a.path.style.access", EhealthServer.ServerConfigFile.sparkHadoopF3S3AConfig.get("spark.hadoop.fs.s3a.path.style.access"))
     .config("spark.hadoop.fs.s3a.impl", EhealthServer.ServerConfigFile.sparkHadoopF3S3AConfig.get("spark.hadoop.fs.s3a.impl"))
-    .config("spark.hadoop.fs.AbstractFileSystem.s3a.impl", EhealthServer.ServerConfigFile.sparkHadoopF3S3AConfig.get("spark.hadoop.fs.AbstractFileSystem.s3a.impl")).getOrCreate()
+    .config("spark.hadoop.fs.AbstractFileSystem.s3a.impl", EhealthServer.ServerConfigFile.sparkHadoopF3S3AConfig.get("spark.hadoop.fs.AbstractFileSystem.s3a.impl"))
+    .config("spark.ui.enabled", false)
+    .getOrCreate()
 
   val DEFAULT_PUBLIC_PRIVACY_PROPERTIES = new DalPrivacyProperties(PrivacyZone.PUBLIC)
 
@@ -124,35 +126,17 @@ object EhealthServer {
       bloodTestsCompliantDF.distinct().show(EhealthServer.ServerConfigFile.showDataFrameLength, false)
     }
     return true
-    /*
-    val profilesDF = DataFrameUtils.loadTableDFFromConfig(null, spark, EhealthServer.ServerConfigFile,
-      "patientsProfiles")
-    if (EhealthServer.debugMode) {
-      profilesDF.distinct().show(EhealthServer.ServerConfigFile.showDataFrameLength, false)
-    }
-
-    //This is inner join
-    var joinedDF = bloodTestsCompliantDF.join(profilesDF, Constants.SUBJECT_ID_COL_NAME)
-    joinedDF.createOrReplaceTempView("joined")
-    if (EhealthServer.debugMode) {
-      println("===========" + "JOINED bloodTests and profiles" + "===========")
-      joinedDF.distinct().show(EhealthServer.ServerConfigFile.showDataFrameLength, false)
-    }
-    true
-    */
   }
 
-  private def getCompliantBloodTestsAndProfiles(spark: SparkSession, queryOnJoinedTable: String,
-                                                dataAndProfileJoin: String): DataFrame = {
+  private def getCompliantBloodTestsAndProfiles(spark: SparkSession, dataAndProfileJoin: String): DataFrame = {
     if (!createDataAndProfileJoinDataFrame(spark, dataAndProfileJoin)) {
       EhealthServer.LOGGER.info("Error in createDataAndProfileJoinDataFrame")
       return spark.emptyDataFrame
     }
 
-    var patientBloodTestsDF = spark.sql("select * from joined").toDF().filter(row => UtilFunctions.anyNotNull(row))
-    //    var patientBloodTestsDF = spark.sql(query).toDF()
+    val patientBloodTestsDF = spark.sql("select * from joined").toDF().filter(row => UtilFunctions.anyNotNull(row))
     if (EhealthServer.debugMode) {
-      println(queryOnJoinedTable)
+      println("Joined table:")
       patientBloodTestsDF.distinct().show(EhealthServer.ServerConfigFile.showDataFrameLength, false)
       patientBloodTestsDF.printSchema
       patientBloodTestsDF.explain(true)
@@ -208,9 +192,9 @@ object EhealthServer {
 
         //ETY:
         if (EhealthServer.ServerConfigFile.debugMode) {
-          //TEST:
+//          TEST:
           dalPrivacyZone = new DalPrivacyProperties(PrivacyZone.PRIVATE).privacyZone
-          println("Changed privacy mode for test to " + dalPrivacyZone.toString())
+          println("Privacy mode: " + dalPrivacyZone.toString())
         }
 
         //ssn is cahed in private cloud. NOTICE: the exact string search, any whitespace can ruin it!
@@ -241,7 +225,7 @@ object EhealthServer {
           EhealthServer.LOGGER.info("Query from documents data source")
           DataFrameUtils.addTableToSpark(spark, ServerConfigFile, "documents",
             ServerConfigFile.showDataFrameLength, debugMode)
-          var docDF = spark.sql(queryObject).toDF()
+          val docDF = spark.sql(queryObject).toDF()
           println(docDF)
           docDF.printSchema
           val values = docDF.toJSON
@@ -258,12 +242,8 @@ object EhealthServer {
             println("In Query: " + queryObject)
             println("Query with Enforcement: " + dataAndProfileGovernedJoin)
           }
-          val queryOnJoinedTable = queryObject.replaceAll("blood_tests", "joined");
-          println(s"Query [${queryObject}] becomes [${queryOnJoinedTable}]")
-
-          val resultDF = getCompliantBloodTestsAndProfiles(EhealthServer.spark, queryOnJoinedTable, dataAndProfileGovernedJoin)
-
-          if (null != responseParquetPath) {
+          val resultDF = getCompliantBloodTestsAndProfiles(EhealthServer.spark, dataAndProfileGovernedJoin)
+           if (null != responseParquetPath) {
             resultDF.write.parquet(responseParquetPath)
           }
           val response = createResponse(resultDF)
