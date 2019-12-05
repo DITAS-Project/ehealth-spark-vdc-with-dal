@@ -1,3 +1,4 @@
+import sbt.ExclusionRule
 name := """ehealth-sample-spark-vdc"""
 
 version := "1.0"
@@ -21,10 +22,19 @@ libraryDependencies ++= {
     "com.adrianhurt" %% "play-bootstrap" % "1.2-P26-B4",
     "org.codehaus.janino" % "janino" % "3.0.8",
     guice,
-    "org.apache.hadoop" % "hadoop-client" % hadoopVersion,
-    "org.apache.spark" % "spark-core_2.11" % sparkVersion exclude("org.apache.hadoop","hadoop-client"),
-    "org.apache.spark" % "spark-sql_2.11" % sparkVersion,
-    "org.apache.hadoop" % "hadoop-aws" % hadoopVersion,
+    "org.apache.spark" % "spark-core_2.11" % sparkVersion excludeAll(
+      ExclusionRule(organization = "org.apache.parquet", name = "parquet-hadoop"),
+      ExclusionRule(organization = "org.apache.parquet", name = "parquet-format"),
+      ExclusionRule(organization = "org.apache.hadoop", name = "hadoop-client")),
+    "org.apache.spark" % "spark-sql_2.11" % sparkVersion excludeAll(
+      ExclusionRule(organization = "org.apache.parquet", name = "parquet-hadoop"),
+      ExclusionRule(organization = "org.apache.parquet", name = "parquet-format")),
+    "org.apache.hadoop" % "hadoop-client" % hadoopVersion excludeAll(
+      ExclusionRule(organization = "org.apache.parquet", name = "parquet-hadoop"),
+      ExclusionRule(organization = "org.apache.parquet", name = "parquet-format")),
+    "org.apache.hadoop" % "hadoop-aws" % hadoopVersion excludeAll(
+      ExclusionRule(organization = "org.apache.parquet", name = "parquet-hadoop"),
+      ExclusionRule(organization = "org.apache.parquet", name = "parquet-format")),
     "com.amazonaws" % "aws-java-sdk-bundle" % "1.11.234",
     "mysql" % "mysql-connector-java" % "6.0.6",
     "com.thesamet.scalapb" %% "scalapb-json4s" % "0.7.2",

@@ -77,7 +77,7 @@ object DataFrameUtils {
     var sparkName = dataConfigName.toString()
     LOGGER.info("writeToSparkTable")
 
-    val connInfo = config.getDataTables.get(dataConfigName) + "_mv"
+    val connInfo = config.getDataTables.get(dataConfigName)
     val connTypeKey = dataConfigName+"_type"
     val connType = config.getDataTablesTypes.get(connTypeKey)
     if (connType.equals("s3a")) {

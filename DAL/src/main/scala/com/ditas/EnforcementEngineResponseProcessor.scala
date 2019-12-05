@@ -33,14 +33,7 @@ object EnforcementEngineResponseProcessor {
       println("the re-written query: " + newQuery.get)
     }
 
-    // Set encryption properties for writing the query result
-    val hadoopConfig = spark.sparkContext.hadoopConfiguration
-    val encryptionProperties = (json \ "encryptionProperties").as[List[JsValue]]
-    for (encryptionProperty <- encryptionProperties) {
-      val key = (encryptionProperty \ "key").as[String]
-      val value = (encryptionProperty \ "value").as[String]
-      hadoopConfig.set(key, value)
-    }
+    setEncryptionPropertiesForSpark(spark, json)
 
     val bloodTestsDF: DataFrame = spark.sql(query).toDF().filter(row => DataFrameUtils.anyNotNull(row))
     if (debugMode) {
@@ -53,11 +46,7 @@ object EnforcementEngineResponseProcessor {
   }
 
 
-  def persistDataBasedOnEEResponse (tableDF: DataFrame, spark: SparkSession, config: ServerConfiguration, response: String,
-                                    debugMode: Boolean, showDataFrameLength: Int) = {
-    this.debugMode = debugMode
-    val json: JsValue = Json.parse(response)
-
+  def setEncryptionPropertiesForSpark(spark: SparkSession, json: JsValue) = {
     // Set encryption properties for writing the query result
     val hadoopConfig = spark.sparkContext.hadoopConfiguration
     val encryptionProperties = (json \ "encryptionProperties").as[List[JsValue]]
@@ -66,6 +55,14 @@ object EnforcementEngineResponseProcessor {
       val value = (encryptionProperty \ "value").as[String]
       hadoopConfig.set(key, value)
     }
+  }
+
+  def persistDataBasedOnEEResponse(tableDF: DataFrame, spark: SparkSession, config: ServerConfiguration, response: String,
+                                   debugMode: Boolean, showDataFrameLength: Int) = {
+    this.debugMode = debugMode
+    val json: JsValue = Json.parse(response)
+
+    setEncryptionPropertiesForSpark(spark, json)
 
     val tables = (json \ "tables").as[List[JsValue]]
     for (table <- tables) {

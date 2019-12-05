@@ -1,6 +1,6 @@
 package com.ditas
 
-import com.ditas.EnforcementEngineResponseProcessor.query
+import com.ditas.EnforcementEngineResponseProcessor.{query, setEncryptionPropertiesForSpark}
 import com.ditas.configuration.ServerConfiguration
 import com.ditas.utils.{JwtValidator, UtilFunctions}
 import io.grpc._
@@ -184,6 +184,9 @@ class QueryImpl(spark: SparkSession, configFile: ServerConfiguration) {
         println("Query with Enforcement: " + dataAndProfileGovernedJoin)
       }
       val spark = DataMovementServer.spark
+      val json: JsValue = Json.parse(dataAndProfileGovernedJoin)
+      EnforcementEngineResponseProcessor.setEncryptionPropertiesForSpark(spark, json)
+
       val dataDF = spark.read.parquet(sharedVolumePath);
       persistCompliantQueryBloodTestsAndProfiles(dataDF, spark, dataAndProfileGovernedJoin)
     }
