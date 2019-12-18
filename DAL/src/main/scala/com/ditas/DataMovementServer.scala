@@ -1,6 +1,6 @@
 package com.ditas
 
-import java.io.{BufferedOutputStream, File, FileInputStream, FileOutputStream}
+import java.io.{BufferedOutputStream, File, FileFilter, FileInputStream, FileOutputStream}
 import java.nio.file.{Path, Paths}
 
 import com.ditas.configuration.ServerConfiguration
@@ -25,7 +25,6 @@ object DataMovementServer {
 
   val parallelism = 4
   lazy val spark: SparkSession = SparkSession.builder.appName(sparkAppName)
-//    .master("spark://mayaa-dev.sl.cloud9.ibm.com:7077")
           .master("local")
     .config("spark.sql.shuffle.partitions", parallelism)
     .config("spark.default.parallelism", parallelism)
@@ -108,6 +107,7 @@ class DataMovementServer(executionContext: ExecutionContext) {
 
   private class DataMovementServiceImpl extends DataMovementServiceGrpc.DataMovementService {
     val DEFAULT_PUBLIC_PRIVACY_PROPERTIES = new DalPrivacyProperties(PrivacyZone.PUBLIC)
+    val FTP_SERVER_FOLDER_PREFIX = "DAL_tmp_"
 
     override def startDataMovement(request: StartDataMovementRequest): Future[StartDataMovementReply] = {
 
@@ -153,7 +153,7 @@ class DataMovementServer(executionContext: ExecutionContext) {
         case e: Exception => DataMovementServer.LOGGER.error("Exception in process engine response " + e, e);
           response = Future.failed(Status.INTERNAL.augmentDescription(e.getMessage).asRuntimeException())
       }
-      publishByFTP(sharedVolumePath, Paths.get(sharedVolumePath).getFileName.toString)
+      publishByFTP(sharedVolumePath, FTP_SERVER_FOLDER_PREFIX + System.currentTimeMillis().toString)
 
       response
     }
@@ -176,7 +176,7 @@ class DataMovementServer(executionContext: ExecutionContext) {
 
       var response: Future[FinishDataMovementReply] = null
       try {
-        downloadByFTP(sharedVolumePath, Paths.get(sharedVolumePath).getFileName.toString)
+        downloadByFTP(sharedVolumePath, FTP_SERVER_FOLDER_PREFIX + System.currentTimeMillis().toString)
         DataMovementServer.queryImpl.persistQueryResult(query, queryParameters, purpose, accessType, authorization, sharedVolumePath)
         response = Future.successful(new FinishDataMovementReply)
       } catch {
@@ -204,7 +204,6 @@ class DataMovementServer(executionContext: ExecutionContext) {
       }
     }
 
-
     def publishByFTP(localPath: String, remotePath: String): Unit = {
       val ftpUrl = System.getenv(DataMovementServer.FTP_URL_PROP)
       val ftpUsername = System.getenv(DataMovementServer.FTP_USERNAME_PROP)
@@ -219,16 +218,25 @@ class DataMovementServer(executionContext: ExecutionContext) {
       val ftpClient = new FTPClient()
       ftpClient.connect(ftpUrl)
       ftpClient.login(ftpUsername, ftpPassword)
-
-      val fileInputStream = new FileInputStream(localPath)
       try {
-        ftpClient.setFileType(FTP.BINARY_FILE_TYPE)
-        ftpClient.storeFile(remotePath, fileInputStream)
-        fileInputStream.close()
-      } catch {
+        ftpClient.changeWorkingDirectory(remotePath)
+        val parquetDirName = Paths.get(localPath).getFileName.toString
+        ftpClient.changeWorkingDirectory(parquetDirName)
+        val files = ftpClient.listFiles().filter(_.isFile)
+        val localDir = new File(localPath)
+        localDir.mkdirs()
+        files.foreach { remoteFile =>
+          val fileOutputStream = new BufferedOutputStream(new FileOutputStream(localPath + File.separator + remoteFile.getName))
+          ftpClient.setFileType(FTP.BINARY_FILE_TYPE)
+          ftpClient.retrieveFile(remoteFile.getName, fileOutputStream)
+          fileOutputStream.close()
+        }
+      }
+      catch {
         case ex: Throwable =>
-          DataMovementServer.LOGGER.error(s"Failed to upload data movement result to: ${DataMovementServer.FTP_URL_PROP}")
-      } finally {
+          DataMovementServer.LOGGER.error(s"Failed to upload data movement result to: ${DataMovementServer.FTP_URL_PROP}", ex)
+      }
+      finally {
         ftpClient.logout()
         ftpClient.disconnect()
       }
@@ -256,7 +264,7 @@ class DataMovementServer(executionContext: ExecutionContext) {
         fileOutputStream.close()
       } catch {
         case ex: Throwable =>
-          DataMovementServer.LOGGER.error(s"Failed to upload data movement result to: ${DataMovementServer.FTP_URL_PROP}")
+          DataMovementServer.LOGGER.error(s"Failed to upload data movement result to: ${DataMovementServer.FTP_URL_PROP}", ex)
       } finally {
         ftpClient.logout()
         ftpClient.disconnect()
