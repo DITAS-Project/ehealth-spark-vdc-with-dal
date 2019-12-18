@@ -43,7 +43,7 @@ class DataMovementServiceTest {
 //    val query = "SELECT patientId from blood_tests"
     val sharedVolumePath = "./data_to_move.parquet"
 
-    startDataMovement(query, sharedVolumePath)
+    startDataMovement(query, sharedVolumePath, "move_to_private")
   }
 
 //  @Test
@@ -79,44 +79,10 @@ class DataMovementServiceTest {
   @Test
   def testStartDataMovementToPublicCloudTEST = {
     val sharedVolumePath = "./data_to_move.parquet.encrypted"
-
-
-    val ID_no_stroke = "1046565446"  // 4 stroke tests =0, 4 blood tests
-    val ID_stroke = "480806951" // 9 stroke tests = 0/1, 9 blood tests
-
-    val bloodtests_col =
-    """
-      |blood_tests.category, blood_tests.prothrombinTime_unit, blood_tests.cholesterol_hdl_value, blood_tests.totalWhiteCellCount_unit, blood_tests.fibrinogen_normalRange, blood_tests.antithrombin_value, blood_tests.fibrinogen_unit, blood_tests.haemoglobin_value, blood_tests.antithrombin_unit,
-      |                  blood_tests.cholesterol_hdl_unit, blood_tests.cholesterol_hdl_normalRange,  blood_tests.cholesterol_ldl_normalRange, blood_tests.bmi, blood_tests.antithrombin_normalRange,blood_tests.totalWhiteCellCount_normalRange, blood_tests.fibrinogen_value,
-      |                  blood_tests.cholesterol_ldl_value, blood_tests.plateletCount_value, blood_tests.cholesterol_total_normalRange,blood_tests.cholesterol_tryglicerides_normalRange, blood_tests.totalWhiteCellCount_value, blood_tests.date, blood_tests.cholesterol_ldl_unit,
-      |                  blood_tests.haemoglobin_unit, blood_tests.prothrombinTime_value, blood_tests.cholesterol_tryglicerides_unit, blood_tests.plateletCount_unit, blood_tests.cholesterol_total_value,blood_tests.haemoglobin_normalRange, blood_tests.prothrombinTime_normalRange,
-      |                  blood_tests.cholesterol_tryglicerides_value,blood_tests.cholesterol_total_unit
-      |
-      |""".stripMargin
-
-//    bloodtests_col = "blood_tests.category, cholesterol_hdl_value"
-
-  val all_cols = "  0 AS patientId, patientsProfiles.gender, year(patientsProfiles.birthDate) AS birthDate,  " + bloodtests_col // 0 AS patientId "
-//    all_cols = " patientsProfiles.gender, year(patientsProfiles.birthDate) AS birthDate, blood_tests.patientId, blood_tests.stroke, blood_tests.cholesterol_tryglicerides_value, blood_tests.cholesterol_total_value, blood_tests.haemoglobin_value"
-
-    val where_filter = "" // AND (blood_tests.patientId == 1046565446 OR  blood_tests.patientId == 480806951)"
-
-
-  val IDsTbl = " (SELECT DISTINCT blood_tests.patientId FROM blood_tests WHERE blood_tests.stroke==1) "
-  val joinedTbl = "blood_tests INNER JOIN patientsProfiles ON patientsProfiles.patientId=blood_tests.patientId"
-
-  val query = "(SELECT    0 as stroke, " + all_cols + "  FROM " + joinedTbl + " WHERE   blood_tests.category==\'blood_test\' AND (blood_tests.patientId NOT IN " + IDsTbl + ") "+  where_filter  + ")" +
-                  " UNION " +
-                  "(SELECT     1 as stroke, " + all_cols + "  FROM " + joinedTbl + " WHERE   blood_tests.category==\'blood_test\' AND (blood_tests.patientId  IN " + IDsTbl + ") "+  where_filter  + ")"
-
-//    query = " SELECT patientId FROM blood_tests WHERE patientId NOT IN (SELECT DISTINCT blood_tests.patientId FROM blood_tests WHERE blood_tests.stroke == 1) "
-
-//    query = "SELECT * FROM blood_tests WHERE patientId == 480806951"
-
-    //blood_tests.category=="blood_test" AND
-
+    val query = "SELECT * from blood_tests"
+//    val query = dataMovementToPublicCloudQuery
     println(query)
-    startDataMovement(query, sharedVolumePath, "data_movement_public_cloud") // "Research")
+    startDataMovement(query, sharedVolumePath, "data_movement_public_cloud")
   }
 
   @Test
@@ -137,7 +103,7 @@ class DataMovementServiceTest {
 
   @Test
   def testFinishDataMovement: Unit = {
-    val query = "SELECT patientId from blood_tests"
+    val query = "SELECT * from blood_tests"
     val sharedVolumePath = "./data_to_move.parquet.encrypted"
 //    val sharedVolumePath = "./data_to_move__joined.parquet"
 

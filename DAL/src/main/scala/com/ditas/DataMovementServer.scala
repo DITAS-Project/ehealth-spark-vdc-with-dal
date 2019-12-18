@@ -1,5 +1,8 @@
 package com.ditas
 
+import java.io.{BufferedOutputStream, File, FileInputStream, FileOutputStream}
+import java.nio.file.{Path, Paths}
+
 import com.ditas.configuration.ServerConfiguration
 import com.ditas.ehealth.DalPrivacyProperties.DalPrivacyProperties
 import com.ditas.ehealth.DalPrivacyProperties.DalPrivacyProperties.PrivacyZone
@@ -8,12 +11,18 @@ import com.ditas.utils.UtilFunctions
 import io.grpc.{Server, ServerBuilder, Status}
 import org.apache.spark.sql.{DataFrame, SaveMode, SparkSession}
 import org.slf4j.LoggerFactory
+import org.apache.commons.net.ftp.{FTP, FTPClient, FTPFile, FTPReply}
 
 import scala.concurrent.{ExecutionContext, Future}
 
 object DataMovementServer {
 
   private val LOGGER = LoggerFactory.getLogger(classOf[DataMovementServer])
+  private val FTP_URL_PROP = "FTP_URL"
+  private val FTP_USERNAME_PROP = "FTP_USERNAME"
+  private val FTP_PASSWORD_PROP = "FTP_PASSWORD"
+
+
   val parallelism = 4
   lazy val spark: SparkSession = SparkSession.builder.appName(sparkAppName)
 //    .master("spark://mayaa-dev.sl.cloud9.ibm.com:7077")
@@ -27,10 +36,8 @@ object DataMovementServer {
     .config("spark.hadoop.fs.s3a.secret.key", ServerConfigFile.sparkHadoopF3S3AConfig.get("spark.hadoop.fs.s3a.secret.key"))
     .config("spark.hadoop.fs.s3a.path.style.access", ServerConfigFile.sparkHadoopF3S3AConfig.get("spark.hadoop.fs.s3a.path.style.access"))
     .config("spark.hadoop.fs.s3a.impl", ServerConfigFile.sparkHadoopF3S3AConfig.get("spark.hadoop.fs.s3a.impl"))
-    .config("spark.hadoop.fs.AbstractFileSystem.s3a.impl", ServerConfigFile.sparkHadoopF3S3AConfig.get("spark.hadoop.fs.AbstractFileSystem.s3a.impl")).getOrCreate()
-
-
-
+    .config("spark.hadoop.fs.AbstractFileSystem.s3a.impl", ServerConfigFile.sparkHadoopF3S3AConfig.get("spark.hadoop.fs.AbstractFileSystem.s3a.impl"))
+    .config("spark.ui.enabled", false).getOrCreate()
 
   lazy val queryImpl = new QueryImpl(spark, ServerConfigFile)
 
@@ -112,9 +119,7 @@ class DataMovementServer(executionContext: ExecutionContext) {
       val sourcePrivacyZone = request.sourcePrivacyProperties.getOrElse(DEFAULT_PUBLIC_PRIVACY_PROPERTIES).privacyZone
       val destinationPrivacyZone = request.destinationPrivacyProperties.getOrElse(DEFAULT_PUBLIC_PRIVACY_PROPERTIES).privacyZone
 
-      // MAYA
       val accessType = "read" //getAccessType(sourcePrivacyZone, destinationPrivacyZone)
-      //ETY:
       if(purpose.equalsIgnoreCase("data_movement_public_cloud") && query.toLowerCase.startsWith("select * from blood_tests")) {
         //need to do join.
         //assume the query is : SELECT * FROM blood_tests WHERE ..."
@@ -138,12 +143,6 @@ class DataMovementServer(executionContext: ExecutionContext) {
         query = "(SELECT    0 as stroke, " + all_cols + "  FROM " + joinedTbl + " WHERE   blood_tests.category==\'blood_test\' AND (blood_tests.patientId NOT IN " + IDsTbl + ") "+  where_filter  + ")" +
           " UNION " +
           "(SELECT     1 as stroke, " + all_cols + "  FROM " + joinedTbl + " WHERE   blood_tests.category==\'blood_test\' AND (blood_tests.patientId  IN " + IDsTbl + ") "+  where_filter  + ")"
-
-
-        purpose="Research"
-        System.err.println("**********ETY ****************:  data_movement_public_cloud")
-        System.err.println(query)
-        System.err.println("purpose changed! " + purpose)
       }
 
       var response: Future[StartDataMovementReply] = null
@@ -154,10 +153,11 @@ class DataMovementServer(executionContext: ExecutionContext) {
         case e: Exception => DataMovementServer.LOGGER.error("Exception in process engine response " + e, e);
           response = Future.failed(Status.INTERNAL.augmentDescription(e.getMessage).asRuntimeException())
       }
+      publishByFTP(sharedVolumePath, Paths.get(sharedVolumePath).getFileName.toString)
+
       response
     }
 
-    // MAYA
     private def getAccessType(sourcePrivacyZone: PrivacyZone, destinationPrivacyZone: PrivacyZone) = {
       "read_" + sourcePrivacyZone.toString() + "_" + destinationPrivacyZone.toString()
     }
@@ -176,6 +176,7 @@ class DataMovementServer(executionContext: ExecutionContext) {
 
       var response: Future[FinishDataMovementReply] = null
       try {
+        downloadByFTP(sharedVolumePath, Paths.get(sharedVolumePath).getFileName.toString)
         DataMovementServer.queryImpl.persistQueryResult(query, queryParameters, purpose, accessType, authorization, sharedVolumePath)
         response = Future.successful(new FinishDataMovementReply)
       } catch {
@@ -200,6 +201,65 @@ class DataMovementServer(executionContext: ExecutionContext) {
           DataMovementServer.LOGGER.info("No results were found for the given query")
         }
         Future.successful(new StartDataMovementReply)
+      }
+    }
+
+
+    def publishByFTP(localPath: String, remotePath: String): Unit = {
+      val ftpUrl = System.getenv(DataMovementServer.FTP_URL_PROP)
+      val ftpUsername = System.getenv(DataMovementServer.FTP_USERNAME_PROP)
+      val ftpPassword = System.getenv(DataMovementServer.FTP_PASSWORD_PROP)
+
+      if ((null == ftpUrl) || ftpUrl.isEmpty || (null == ftpUsername) || ftpUsername.isEmpty ||
+        (null == ftpPassword) || ftpPassword.isEmpty) {
+        DataMovementServer.LOGGER.warn(s"FTP server is not fully defined in environment variables: ${DataMovementServer.FTP_URL_PROP}, " +
+          s"${DataMovementServer.FTP_USERNAME_PROP}, ${DataMovementServer.FTP_PASSWORD_PROP}")
+        return
+      }
+      val ftpClient = new FTPClient()
+      ftpClient.connect(ftpUrl)
+      ftpClient.login(ftpUsername, ftpPassword)
+
+      val fileInputStream = new FileInputStream(localPath)
+      try {
+        ftpClient.setFileType(FTP.BINARY_FILE_TYPE)
+        ftpClient.storeFile(remotePath, fileInputStream)
+        fileInputStream.close()
+      } catch {
+        case ex: Throwable =>
+          DataMovementServer.LOGGER.error(s"Failed to upload data movement result to: ${DataMovementServer.FTP_URL_PROP}")
+      } finally {
+        ftpClient.logout()
+        ftpClient.disconnect()
+      }
+    }
+
+    def downloadByFTP(localPath: String, remotePath: String): Unit = {
+      val ftpUrl = System.getProperty(DataMovementServer.FTP_URL_PROP)
+      val ftpUsername = System.getProperty(DataMovementServer.FTP_USERNAME_PROP)
+      val ftpPassword = System.getProperty(DataMovementServer.FTP_PASSWORD_PROP)
+
+      if ((null == ftpUrl) || ftpUrl.isEmpty || (null == ftpUsername) || ftpUsername.isEmpty ||
+        (null == ftpPassword) || ftpPassword.isEmpty) {
+        DataMovementServer.LOGGER.warn(s"FTP server is not fully defined in environment variables: ${DataMovementServer.FTP_URL_PROP}, " +
+          s"${DataMovementServer.FTP_USERNAME_PROP}, ${DataMovementServer.FTP_PASSWORD_PROP}")
+        return
+      }
+      val ftpClient = new FTPClient()
+      ftpClient.connect(ftpUrl)
+      ftpClient.login(ftpUsername, ftpPassword)
+
+      val fileOutputStream = new BufferedOutputStream(new FileOutputStream(localPath))
+      try {
+        ftpClient.setFileType(FTP.BINARY_FILE_TYPE)
+        ftpClient.retrieveFile(remotePath, fileOutputStream)
+        fileOutputStream.close()
+      } catch {
+        case ex: Throwable =>
+          DataMovementServer.LOGGER.error(s"Failed to upload data movement result to: ${DataMovementServer.FTP_URL_PROP}")
+      } finally {
+        ftpClient.logout()
+        ftpClient.disconnect()
       }
     }
   }

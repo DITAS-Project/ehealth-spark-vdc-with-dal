@@ -21,19 +21,18 @@ object EnforcementEngineResponseProcessor {
     this.debugMode = debugMode
     val json: JsValue = Json.parse(response)
 
-    val tables = (json \ "tables").as[List[JsValue]]
-    for (table <- tables) {
-      val tableName = (table \ "name").as[String]
-      DataFrameUtils.addTableToSpark(spark, config, tableName, showDataFrameLength, debugMode)
-    }
     val newQuery = (json \ "rewrittenQuery").validate[String]
     query = newQuery.get
-//    query = "SELECT blood_tests.*, patientsProfiles.gender, year(patientsProfiles.birthDate) AS birthDate FROM blood_tests INNER JOIN patientsProfiles ON patientsProfiles.patientId=blood_tests.patientId"
     if (debugMode) {
       println("the re-written query: " + newQuery.get)
     }
 
     setEncryptionPropertiesForSpark(spark, json)
+    val tables = (json \ "tables").as[List[JsValue]]
+    for (table <- tables) {
+      val tableName = (table \ "name").as[String]
+      DataFrameUtils.addTableToSpark(spark, config, tableName, showDataFrameLength, debugMode)
+    }
 
     val bloodTestsDF: DataFrame = spark.sql(query).toDF().filter(row => DataFrameUtils.anyNotNull(row))
     if (debugMode) {
