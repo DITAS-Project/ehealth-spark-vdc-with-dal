@@ -193,8 +193,8 @@ object EhealthServer {
         //ETY:
         if (EhealthServer.ServerConfigFile.debugMode) {
 //          TEST:
-          dalPrivacyZone = new DalPrivacyProperties(PrivacyZone.PRIVATE).privacyZone
-          println("Privacy mode: " + dalPrivacyZone.toString())
+          dalPrivacyZone = new DalPrivacyProperties(PrivacyZone.ON_PREM).privacyZone
+         println("Privacy mode: " + dalPrivacyZone.toString())
         }
 
         //ssn is cahed in private cloud. NOTICE: the exact string search, any whitespace can ruin it!

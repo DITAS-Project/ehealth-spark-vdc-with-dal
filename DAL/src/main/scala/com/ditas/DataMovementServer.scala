@@ -1,6 +1,6 @@
 package com.ditas
 
-import java.io.{BufferedOutputStream, File, FileFilter, FileInputStream, FileOutputStream}
+import java.io.{BufferedInputStream, BufferedOutputStream, File, FileFilter, FileInputStream, FileOutputStream}
 import java.nio.file.{Path, Paths}
 
 import com.ditas.configuration.ServerConfiguration
@@ -215,21 +215,27 @@ class DataMovementServer(executionContext: ExecutionContext) {
           s"${DataMovementServer.FTP_USERNAME_PROP}, ${DataMovementServer.FTP_PASSWORD_PROP}")
         return
       }
+      println("Publish by FTP")
       val ftpClient = new FTPClient()
       ftpClient.connect(ftpUrl)
       ftpClient.login(ftpUsername, ftpPassword)
       try {
-        ftpClient.changeWorkingDirectory(remotePath)
+        if (!ftpClient.changeWorkingDirectory(remotePath))
+          ftpClient.makeDirectory(remotePath)
         val parquetDirName = Paths.get(localPath).getFileName.toString
-        ftpClient.changeWorkingDirectory(parquetDirName)
-        val files = ftpClient.listFiles().filter(_.isFile)
+        if (!ftpClient.changeWorkingDirectory(remotePath + File.separator + parquetDirName))
+          ftpClient.makeDirectory(remotePath + File.separator + parquetDirName)
         val localDir = new File(localPath)
-        localDir.mkdirs()
-        files.foreach { remoteFile =>
-          val fileOutputStream = new BufferedOutputStream(new FileOutputStream(localPath + File.separator + remoteFile.getName))
+        val files = localDir.listFiles().filter(_.isFile)
+        files.foreach { localFile =>
+          val fullLocalFilename = localPath + File.separator + localFile.getName
+          val fullTargetPath = remotePath + File.separator + parquetDirName + File.separator + localFile.getName
+          println(s"Starting upload of ${fullLocalFilename} to ${ftpUrl} ${fullTargetPath}")
+          val fileInputStream = new BufferedInputStream(new FileInputStream(fullLocalFilename))
           ftpClient.setFileType(FTP.BINARY_FILE_TYPE)
-          ftpClient.retrieveFile(remoteFile.getName, fileOutputStream)
-          fileOutputStream.close()
+          ftpClient.storeFile(fullTargetPath, fileInputStream)
+          fileInputStream.close()
+          println(s"Finished upload of ${fullLocalFilename} to ${ftpUrl} ${fullTargetPath}")
         }
       }
       catch {
@@ -253,15 +259,18 @@ class DataMovementServer(executionContext: ExecutionContext) {
           s"${DataMovementServer.FTP_USERNAME_PROP}, ${DataMovementServer.FTP_PASSWORD_PROP}")
         return
       }
+      println("Download by FTP")
       val ftpClient = new FTPClient()
       ftpClient.connect(ftpUrl)
       ftpClient.login(ftpUsername, ftpPassword)
 
       val fileOutputStream = new BufferedOutputStream(new FileOutputStream(localPath))
       try {
+        println(s"Starting download of ${remotePath} from ${ftpUrl}")
         ftpClient.setFileType(FTP.BINARY_FILE_TYPE)
         ftpClient.retrieveFile(remotePath, fileOutputStream)
         fileOutputStream.close()
+        println(s"Finished download of ${remotePath} from ${ftpUrl}")
       } catch {
         case ex: Throwable =>
           DataMovementServer.LOGGER.error(s"Failed to upload data movement result to: ${DataMovementServer.FTP_URL_PROP}", ex)

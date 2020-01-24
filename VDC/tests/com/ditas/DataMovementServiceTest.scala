@@ -15,7 +15,10 @@ import scala.io.Source
 @RunWith(value = classOf[JUnit4])
 class DataMovementServiceTest {
   val token = Source.fromFile("/home/mayaa/Development/GitHub/DITAS/ehealth-spark-vdc-with-dal/DITASconfigFiles/config_files_for_demo/kc_access_token.txt").getLines().mkString
-  val serverUrl = "localhost"  // = "178.22.71.88"
+  val serverUrlFRA = "178.22.71.88"
+  val serverUrlSJC = "104.36.16.245"
+  val serverUrlLocal = "localhost"
+  val serverUrl = serverUrlSJC
 
 
   val bloodtests_col =
@@ -39,11 +42,12 @@ class DataMovementServiceTest {
 
   @Test
   def testStartDataMovement = {
-    val query = "SELECT * from blood_tests LIMIT 5"
+    val query = "SELECT date from blood_tests LIMIT 5"
 //    val query = "SELECT patientId from blood_tests"
     val sharedVolumePath = "./data_to_move.parquet"
 
-    startDataMovement(query, sharedVolumePath, "move_to_private")
+//    startDataMovement(query, sharedVolumePath, "move_to_private")
+    startDataMovement(query, sharedVolumePath, "Research")
   }
 
 //  @Test
