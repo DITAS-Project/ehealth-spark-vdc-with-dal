@@ -35,7 +35,7 @@ libraryDependencies ++= {
     "org.apache.hadoop" % "hadoop-aws" % hadoopVersion excludeAll(
       ExclusionRule(organization = "org.apache.parquet", name = "parquet-hadoop"),
       ExclusionRule(organization = "org.apache.parquet", name = "parquet-format")),
-    "com.amazonaws" % "aws-java-sdk-bundle" % "1.11.234",
+    "com.amazonaws" % "aws-java-sdk-bundle" % "1.11.524",
     "mysql" % "mysql-connector-java" % "6.0.6",
     "com.thesamet.scalapb" %% "scalapb-json4s" % "0.7.2",
     "junit" % "junit" % "4.12" % Test

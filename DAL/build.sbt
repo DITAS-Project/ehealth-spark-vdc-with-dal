@@ -34,7 +34,7 @@ libraryDependencies ++= {
     "org.apache.hadoop" % "hadoop-aws" % hadoopVersion excludeAll(
       ExclusionRule(organization = "org.apache.parquet", name = "parquet-hadoop"),
       ExclusionRule(organization = "org.apache.parquet", name = "parquet-format")),
-    "com.amazonaws" % "aws-java-sdk-bundle" % "1.11.234",
+    "com.amazonaws" % "aws-java-sdk-bundle" % "1.11.524",
 
     "org.yaml" % "snakeyaml" % "1.11",
     "com.typesafe.play" %% "play-json" % "2.6.6",
