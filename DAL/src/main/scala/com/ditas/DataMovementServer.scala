@@ -107,7 +107,7 @@ class DataMovementServer(executionContext: ExecutionContext) {
 
   private class DataMovementServiceImpl extends DataMovementServiceGrpc.DataMovementService {
     val DEFAULT_PUBLIC_PRIVACY_PROPERTIES = new DalPrivacyProperties(PrivacyZone.PUBLIC)
-    val FTP_SERVER_FOLDER_PREFIX = "DAL_tmp_"
+    val FTP_SERVER_FOLDER_PREFIX = "/dm"
 
     override def startDataMovement(request: StartDataMovementRequest): Future[StartDataMovementReply] = {
 
@@ -153,7 +153,7 @@ class DataMovementServer(executionContext: ExecutionContext) {
         case e: Exception => DataMovementServer.LOGGER.error("Exception in process engine response " + e, e);
           response = Future.failed(Status.INTERNAL.augmentDescription(e.getMessage).asRuntimeException())
       }
-      publishByFTP(sharedVolumePath, FTP_SERVER_FOLDER_PREFIX + System.currentTimeMillis().toString)
+      publishByFTP(sharedVolumePath, FTP_SERVER_FOLDER_PREFIX)
 
       response
     }
@@ -176,7 +176,9 @@ class DataMovementServer(executionContext: ExecutionContext) {
 
       var response: Future[FinishDataMovementReply] = null
       try {
-        downloadByFTP(sharedVolumePath, FTP_SERVER_FOLDER_PREFIX + System.currentTimeMillis().toString)
+        if (downloadByFTP(sharedVolumePath, FTP_SERVER_FOLDER_PREFIX) < 1) {
+          response = Future.failed(Status.INTERNAL.augmentDescription("No files downloaded").asRuntimeException())
+        }
         DataMovementServer.queryImpl.persistQueryResult(query, queryParameters, purpose, accessType, authorization, sharedVolumePath)
         response = Future.successful(new FinishDataMovementReply)
       } catch {
@@ -205,9 +207,10 @@ class DataMovementServer(executionContext: ExecutionContext) {
     }
 
     def publishByFTP(localPath: String, remotePath: String): Unit = {
-      val ftpUrl = System.getenv(DataMovementServer.FTP_URL_PROP)
-      val ftpUsername = System.getenv(DataMovementServer.FTP_USERNAME_PROP)
-      val ftpPassword = System.getenv(DataMovementServer.FTP_PASSWORD_PROP)
+      val envProperty = DataMovementServer.FTP_URL_PROP
+      val ftpUrl = getEnvProperty(envProperty)
+      val ftpUsername = getEnvProperty(DataMovementServer.FTP_USERNAME_PROP)
+      val ftpPassword = getEnvProperty(DataMovementServer.FTP_PASSWORD_PROP)
 
       if ((null == ftpUrl) || ftpUrl.isEmpty || (null == ftpUsername) || ftpUsername.isEmpty ||
         (null == ftpPassword) || ftpPassword.isEmpty) {
@@ -248,39 +251,58 @@ class DataMovementServer(executionContext: ExecutionContext) {
       }
     }
 
-    def downloadByFTP(localPath: String, remotePath: String): Unit = {
-      val ftpUrl = System.getProperty(DataMovementServer.FTP_URL_PROP)
-      val ftpUsername = System.getProperty(DataMovementServer.FTP_USERNAME_PROP)
-      val ftpPassword = System.getProperty(DataMovementServer.FTP_PASSWORD_PROP)
+    def downloadByFTP(localPath: String, remotePath: String): Int = {
+      val ftpUrl = getEnvProperty(DataMovementServer.FTP_URL_PROP)
+      val ftpUsername = getEnvProperty(DataMovementServer.FTP_USERNAME_PROP)
+      val ftpPassword = getEnvProperty(DataMovementServer.FTP_PASSWORD_PROP)
+      var numFilesDownloaded = 0
 
       if ((null == ftpUrl) || ftpUrl.isEmpty || (null == ftpUsername) || ftpUsername.isEmpty ||
         (null == ftpPassword) || ftpPassword.isEmpty) {
         DataMovementServer.LOGGER.warn(s"FTP server is not fully defined in environment variables: ${DataMovementServer.FTP_URL_PROP}, " +
           s"${DataMovementServer.FTP_USERNAME_PROP}, ${DataMovementServer.FTP_PASSWORD_PROP}")
-        return
+        return numFilesDownloaded
       }
       println("Download by FTP")
       val ftpClient = new FTPClient()
       ftpClient.connect(ftpUrl)
       ftpClient.login(ftpUsername, ftpPassword)
 
-      val fileOutputStream = new BufferedOutputStream(new FileOutputStream(localPath))
       try {
-        println(s"Starting download of ${remotePath} from ${ftpUrl}")
-        ftpClient.setFileType(FTP.BINARY_FILE_TYPE)
-        ftpClient.retrieveFile(remotePath, fileOutputStream)
-        fileOutputStream.close()
-        println(s"Finished download of ${remotePath} from ${ftpUrl}")
+        ftpClient.changeWorkingDirectory(remotePath)
+        val localDir = new File(localPath)
+        localDir.mkdirs()
+        val parquetDirName = Paths.get(localPath).getFileName.toString
+        val files = ftpClient.listFiles(remotePath + File.separator + parquetDirName)
+        files.foreach { remoteFile =>
+          val localFilePath = localPath + File.separator + remoteFile.getName
+          val fileOutputStream = new BufferedOutputStream(new FileOutputStream(localFilePath))
+          val remoteFullPath = remotePath + File.separator + parquetDirName + File.separator + remoteFile.getName
+          println(s"Starting download of ${remoteFullPath} from ${ftpUrl} to ${localFilePath}")
+          ftpClient.setFileType(FTP.BINARY_FILE_TYPE)
+          ftpClient.retrieveFile(remoteFullPath, fileOutputStream)
+          fileOutputStream.close()
+          numFilesDownloaded+= 1
+          println(s"Finished download of ${localFilePath} from ${ftpUrl} to ${localPath}")
+        }
       } catch {
         case ex: Throwable =>
-          DataMovementServer.LOGGER.error(s"Failed to upload data movement result to: ${DataMovementServer.FTP_URL_PROP}", ex)
+          DataMovementServer.LOGGER.error(s"Failed to download data movement result from: ${DataMovementServer.FTP_URL_PROP}", ex)
       } finally {
         ftpClient.logout()
         ftpClient.disconnect()
       }
+      numFilesDownloaded
     }
   }
 
+  private def getEnvProperty(propertyName: String) = {
+    var propertyValue = System.getenv(propertyName)
+    if (null == propertyValue) {
+      propertyValue = System.getProperty(propertyName)
+    }
+    propertyValue
+  }
 }
 
 

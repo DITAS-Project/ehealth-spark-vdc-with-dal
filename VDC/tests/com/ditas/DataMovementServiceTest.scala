@@ -15,10 +15,11 @@ import scala.io.Source
 @RunWith(value = classOf[JUnit4])
 class DataMovementServiceTest {
   val token = Source.fromFile("/home/mayaa/Development/GitHub/DITAS/ehealth-spark-vdc-with-dal/DITASconfigFiles/config_files_for_demo/kc_access_token.txt").getLines().mkString
-  val serverUrlFRA = "178.22.71.88"
+  val serverUrlZRC = "178.22.71.88"
+  val serverUrlFRA = "85.204.97.144"
   val serverUrlSJC = "104.36.16.245"
   val serverUrlLocal = "localhost"
-  val serverUrl = serverUrlSJC
+  val serverUrl = serverUrlFRA
 
 
   val bloodtests_col =
@@ -60,13 +61,13 @@ class DataMovementServiceTest {
 //  }
 
   @Test
-  def testStartDataMovementToPublicCloud = {
+  def testStartDataMovementToPublicCloudLocal = {
 //    val query = "SELECT * from blood_tests WHERE blood_tests.patientId == 1046565446 OR  blood_tests.patientId == 480806951"
-    val query = "SELECT * from blood_tests"
-    val sharedVolumePath = "./data_to_move.parquet"
+    val query = "SELECT * from blood_tests LIMIT 5" // date, fibrinogen_value
+    val sharedVolumePath = "./data_to_move.parquet.encrypted"
 
     //verify joined table
-    startDataMovement(query, sharedVolumePath, "data_movement_public_cloud")
+    startDataMovement(query, sharedVolumePath, "data_movement_public_cloud", serverUrlLocal)
   }
 
   @Test
@@ -82,11 +83,11 @@ class DataMovementServiceTest {
 
   @Test
   def testStartDataMovementToPublicCloudTEST = {
-    val sharedVolumePath = "./data_to_move.parquet.encrypted"
-    val query = "SELECT * from blood_tests"
+    val sharedVolumePath = "./date_to_move.parquet.encrypted"
+    val query = "SELECT date, fibrinogen_value from blood_tests LIMIT 5" // date, fibrinogen_value
 //    val query = dataMovementToPublicCloudQuery
     println(query)
-    startDataMovement(query, sharedVolumePath, "data_movement_public_cloud")
+    startDataMovement(query, sharedVolumePath, "data_movement_public_cloud", serverUrlSJC)
   }
 
   @Test
@@ -97,23 +98,31 @@ class DataMovementServiceTest {
     startDataMovement(query, sharedVolumePath)
   }
 
-  private def startDataMovement(query: String, sharedVolumePath: String, purpose: String = "data_movement_public_cloud") = {
+  private def startDataMovement(query: String, sharedVolumePath: String, purpose: String = "data_movement_public_cloud", server: String = serverUrl) = {
     val dalMesssageProperties = new DalMessageProperties(purpose, "requester", "Bearer " + token)
     val sourcePrivacyProperties = None
     val destinationPrivacyProperties = None
     DataMovementClient.startDataMovement(query, sharedVolumePath, Option(dalMesssageProperties), sourcePrivacyProperties,
-      destinationPrivacyProperties, serverPort = 50055, serverUrl)
+      destinationPrivacyProperties, serverPort = 50055, server)
   }
 
   @Test
   def testFinishDataMovement: Unit = {
-    val query = "SELECT * from blood_tests"
+    val query = "SELECT date, fibrinogen_value from blood_tests"
     val sharedVolumePath = "./data_to_move.parquet.encrypted"
 //    val sharedVolumePath = "./data_to_move__joined.parquet"
 
-    finishDataMovement(query, sharedVolumePath)
+    finishDataMovement(query, sharedVolumePath, serverUrlFRA)
   }
 
+  @Test
+  def testFinishDataMovementLocal: Unit = {
+    val query = "SELECT * from blood_tests"
+    val sharedVolumePath = "./data_to_move.parquet.encrypted"
+    //    val sharedVolumePath = "./data_to_move__joined.parquet"
+
+    finishDataMovement(query, sharedVolumePath, serverUrlLocal)
+  }
 
   @Test
   def testFinishDataMovementJDBC: Unit = {
@@ -123,12 +132,12 @@ class DataMovementServiceTest {
     finishDataMovement(query, sharedVolumePath)
   }
 
-  private def finishDataMovement(query: String, sharedVolumePath: String) = {
+  private def finishDataMovement(query: String, sharedVolumePath: String, server: String = serverUrl) = {
     val dalMesssageProperties = new DalMessageProperties("data_movement_public_cloud", "requester", "Bearer " + token)
     val sourcePrivacyProperties = None
     val destinationPrivacyProperties = None
     DataMovementClient.finishDataMovement(query, sharedVolumePath, Option(dalMesssageProperties), sourcePrivacyProperties,
-      destinationPrivacyProperties, serverPort = 50055, serverUrl = serverUrl, targetDataSource = "newBloodTests")
+      destinationPrivacyProperties, serverPort = 50055, serverUrl = server, targetDataSource = "newBloodTests")
   }
 }
 
