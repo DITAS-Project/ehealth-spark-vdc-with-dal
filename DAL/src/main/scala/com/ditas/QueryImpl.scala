@@ -29,7 +29,7 @@ class QueryImpl(spark: SparkSession, configFile: ServerConfiguration) {
     val data = Json.obj(
       "query" -> query,
       "purpose" -> purpose,
-      "access" -> "read",
+      "access" -> accessType,
       "requester" -> "",
       "blueprintId" -> "",
       "requesterId" -> requesterId

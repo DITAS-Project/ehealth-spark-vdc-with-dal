@@ -66,13 +66,13 @@ object EhealthServer {
   private var validRoles: mutable.Buffer[String] = ArrayBuffer("*")
 
 
-  private def sendRequestToEnforcmentEngine(purpose: String, requesterId: String, authorizationHeader: String, enforcementEngineURL: String,
+  private def sendRequestToEnforcmentEngine(purpose: String, accessType: String, requesterId: String, authorizationHeader: String, enforcementEngineURL: String,
                                             query: String): String = {
 
     val data = Json.obj(
       "query" -> query,
       "purpose" -> purpose,
-      "access" -> "read",
+      "access" -> accessType,
       "requester" -> "",
       "blueprintId" -> "",
       "requesterId" -> requesterId
@@ -190,14 +190,12 @@ object EhealthServer {
           }
         }
 
-        //ETY:
-        if (EhealthServer.ServerConfigFile.debugMode) {
-//          TEST:
-          dalPrivacyZone = new DalPrivacyProperties(PrivacyZone.ON_PREM).privacyZone
-         println("Privacy mode: " + dalPrivacyZone.toString())
+        if (null != EhealthServer.ServerConfigFile.privacyZone) {
+          dalPrivacyZone = PrivacyZone.fromName(EhealthServer.ServerConfigFile.privacyZone).getOrElse(PrivacyZone.ON_PREM)
         }
+        val accessType = if (PrivacyZone.PUBLIC.eq(dalPrivacyZone)) "read_public_cloud" else "read"
 
-        //ssn is cahed in private cloud. NOTICE: the exact string search, any whitespace can ruin it!
+        //ssn is hashed in private cloud.
         if(dalPrivacyZone.toString() == "PRIVATE" && queryObject.contains("socialId='")) {
           val beginSSN = queryObject.indexOf("socialId='")+"socialId=".length
           val endSSN = queryObject.indexOf("'", beginSSN+1)+1
@@ -231,7 +229,7 @@ object EhealthServer {
           val values = docDF.toJSON
           return Future.successful(new EHealthQueryReply(values.collectAsList().asScala))
         }
-        val dataAndProfileGovernedJoin = sendRequestToEnforcmentEngine(purpose, "", authorizationHeader,
+        val dataAndProfileGovernedJoin = sendRequestToEnforcmentEngine(purpose, accessType, "", authorizationHeader,
           EhealthServer.ServerConfigFile.policyEnforcementUrl, queryObject)
 
         if (dataAndProfileGovernedJoin == "") {

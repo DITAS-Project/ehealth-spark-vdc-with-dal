@@ -62,14 +62,15 @@ object EnforcementEngineResponseProcessor {
     val json: JsValue = Json.parse(response)
 
     setEncryptionPropertiesForSpark(spark, json)
+    tableDF.write.mode("append").parquet(config.sparkHadoopF3S3AConfig.get("s3.filename"))
 
-    val tables = (json \ "tables").as[List[JsValue]]
-    for (table <- tables) {
-      val tableName = (table \ "name").as[String]
-      if (!tableName.endsWith("_clauses") && !tableName.endsWith("_rules") && !tableName.equals("consents")) {
-        DataFrameUtils.writeToSparkTable(tableDF, spark, config, tableName, showDataFrameLength, debugMode)
-      }
-    }
+//    val tables = (json \ "tables").as[List[JsValue]]
+//    for (table <- tables) {
+//      val tableName = (table \ "name").as[String]
+//      if (!tableName.endsWith("_clauses") && !tableName.endsWith("_rules") && !tableName.equals("consents")) {
+//        DataFrameUtils.writeToSparkTable(tableDF, spark, config, tableName, showDataFrameLength, debugMode)
+//      }
+//    }
 
   }
 }

@@ -13,6 +13,7 @@ class ServerConfiguration {
   @BeanProperty var jwksServerEndpoint: String = null
   @BeanProperty var jwksCheckServerCertificate: Boolean = true
 
+  @BeanProperty var privacyZone = "ON_PREM" // PRIVATE/PUBLIC/ON_PREM
   @BeanProperty var showDataFrameLength: Int = 10
   @BeanProperty var dataTables = new java.util.HashMap[String, String]();
   @BeanProperty var dataTablesTypes = new java.util.HashMap[String, String]();

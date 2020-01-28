@@ -172,7 +172,7 @@ class DataMovementServer(executionContext: ExecutionContext) {
       val sourcePrivacyZone = request.sourcePrivacyProperties.getOrElse(DEFAULT_PUBLIC_PRIVACY_PROPERTIES).privacyZone
       val destinationPrivacyZone = request.destinationPrivacyProperties.getOrElse(DEFAULT_PUBLIC_PRIVACY_PROPERTIES).privacyZone
 
-      val accessType = "read" //getAccessType(sourcePrivacyZone, destinationPrivacyZone)
+      val accessType = "write" //getAccessType(sourcePrivacyZone, destinationPrivacyZone)
 
       var response: Future[FinishDataMovementReply] = null
       try {
