@@ -11,6 +11,7 @@ import org.apache.spark.sql.{DataFrame, SparkSession}
 import org.slf4j.LoggerFactory
 import play.api.libs.json._
 import scalaj.http.{Http, HttpOptions, HttpResponse}
+import scala.util.matching.Regex
 
 import scala.collection.JavaConverters._
 import scala.collection.mutable
@@ -30,7 +31,7 @@ object EhealthServer {
     .getOrCreate()
 
   val DEFAULT_PUBLIC_PRIVACY_PROPERTIES = new DalPrivacyProperties(PrivacyZone.PUBLIC)
-
+  val insideSelectPattern = "SELECT (.*) FROM".r
 
   lazy val queryImpl = new QueryImpl(spark, ServerConfigFile)
 
@@ -196,7 +197,7 @@ object EhealthServer {
         val accessType = if (PrivacyZone.PUBLIC.eq(dalPrivacyZone)) "read_public_cloud" else "read"
 
         //ssn is hashed in private cloud.
-        if(dalPrivacyZone.toString() == "PRIVATE" && queryObject.contains("socialId='")) {
+        if (PrivacyZone.PRIVATE.equals(dalPrivacyZone) && queryObject.contains("socialId='")) {
           val beginSSN = queryObject.indexOf("socialId='")+"socialId=".length
           val endSSN = queryObject.indexOf("'", beginSSN+1)+1
           val SSN = queryObject.substring(beginSSN, endSSN)
@@ -207,6 +208,16 @@ object EhealthServer {
             println("Query with hash: " + queryObject)
           }
         }
+        val selectQuery = insideSelectPattern.findFirstIn(queryObject).getOrElse("")
+        if (PrivacyZone.PRIVATE.equals(dalPrivacyZone) && selectQuery.contains("birthDate")) {
+          queryObject = queryObject.replaceFirst("birthDate", "year(patientsProfiles.birthDate) AS birthDate")
+          if (EhealthServer.ServerConfigFile.debugMode) {
+            println("year(birthDate) rewrite query! ")
+            println("Query with pseudonimization: " + queryObject)
+          }
+        }
+
+
 
 
         if(dalPrivacyZone.toString() == "PUBLIC" &&  queryObject.contains("INNER JOIN patientsProfiles ON blood_tests.patientId=patientsProfiles.patientId")){

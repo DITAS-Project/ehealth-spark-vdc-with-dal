@@ -178,9 +178,10 @@ class DataMovementServer(executionContext: ExecutionContext) {
       try {
         if (downloadByFTP(sharedVolumePath, FTP_SERVER_FOLDER_PREFIX) < 1) {
           response = Future.failed(Status.INTERNAL.augmentDescription("No files downloaded").asRuntimeException())
+        } else {
+          DataMovementServer.queryImpl.persistQueryResult(query, queryParameters, purpose, accessType, authorization, sharedVolumePath)
+          response = Future.successful(new FinishDataMovementReply)
         }
-        DataMovementServer.queryImpl.persistQueryResult(query, queryParameters, purpose, accessType, authorization, sharedVolumePath)
-        response = Future.successful(new FinishDataMovementReply)
       } catch {
         case e: Exception => DataMovementServer.LOGGER.error("Exception in process engine response " + e, e);
           response = Future.failed(Status.INTERNAL.augmentDescription(e.getMessage).asRuntimeException())
