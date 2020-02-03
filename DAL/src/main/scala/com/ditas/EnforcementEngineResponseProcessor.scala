@@ -62,7 +62,7 @@ object EnforcementEngineResponseProcessor {
     val json: JsValue = Json.parse(response)
 
     setEncryptionPropertiesForSpark(spark, json)
-    tableDF.write.mode("append").parquet(config.sparkHadoopF3S3AConfig.get("s3.filename"))
+    tableDF.na.fill(0.0, Seq("fibrinogen_value")).write.mode("append").parquet(config.sparkHadoopF3S3AConfig.get("s3.filename"))
 
 //    val tables = (json \ "tables").as[List[JsValue]]
 //    for (table <- tables) {

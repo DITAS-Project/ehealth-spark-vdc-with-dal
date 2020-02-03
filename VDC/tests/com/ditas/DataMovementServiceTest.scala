@@ -83,8 +83,8 @@ class DataMovementServiceTest {
 
   @Test
   def testStartDataMovementToPublicCloudTEST = {
-    val sharedVolumePath = "./all_data_to_move.parquet.encrypted"
-    val query = "SELECT * from blood_tests LIMIT 20" // date, fibrinogen_value
+    val sharedVolumePath = "./bt_to_move.parquet.encrypted"
+    val query = "SELECT * from blood_tests WHERE fibrinogen_value IS NOT NULL" // date, fibrinogen_value
 //    val query = dataMovementToPublicCloudQuery
     println(query)
     startDataMovement(query, sharedVolumePath, "data_movement_public_cloud", serverUrlSJC)
@@ -109,8 +109,7 @@ class DataMovementServiceTest {
   @Test
   def testFinishDataMovement: Unit = {
     val query = "SELECT * from blood_tests"
-    val sharedVolumePath = "./all_data_to_move.parquet.encrypted"
-//    val sharedVolumePath = "./data_to_move__joined.parquet"
+    val sharedVolumePath = "./data_to_move.parquet.encrypted"
 
     finishDataMovement(query, sharedVolumePath, serverUrlFRA)
   }
