@@ -8,10 +8,10 @@ sparkHadoopF3S3AConfig:
  spark.hadoop.fs.AbstractFileSystem.s3a.impl: "org.apache.hadoop.fs.s3a.S3A"
  s3.filename: "s3a://ditas.dummy-example/ditas-blood-tests.parquet"
 
-#jdbcConfig:
-# db.mysql.url: "#{MYSQL_URI}"
-# db.mysql.username: "#{MYSQL_USERNAME}"
-# db.mysql.password: "#{MYSQL_PASSWORD}"
+jdbcConfig:
+ db.mysql.url: "#{MYSQL_URI}"
+ db.mysql.username: "#{MYSQL_USERNAME}"
+ db.mysql.password: "#{MYSQL_PASSWORD}"
 
 policyEnforcementUrl: "#{POLICY_ENFORCEMENT_URI}"
 
@@ -25,21 +25,21 @@ showDataFrameLength: 20
 
 dataTables:
  blood_tests: "s3a://ditas.dummy-example/blood-tests-10000.parquet"
-# consent: "s3a://ditas.dummy-example/consents.Consents10000Demo"
-# blood_tests_clauses: "s3a://ditas.dummy-example/blood_tests_10000.clausesDemo"
-# blood_tests_rules: "s3a://ditas.dummy-example/blood_tests_10000.rulesDemo"
-# patientsProfiles: patient
-# patientsProfiles_clauses: patient10000_clausesDemo
-# patientsProfiles_rules: patient10000_rulesDemo
+ consent: "s3a://ditas.dummy-example/consents.Consents10000Demo"
+ blood_tests_clauses: "s3a://ditas.dummy-example/blood_tests_10000.clausesDemo"
+ blood_tests_rules: "s3a://ditas.dummy-example/blood_tests_10000.rulesDemo"
+ patientsProfiles: patient
+ patientsProfiles_clauses: patient10000_clausesDemo
+ patientsProfiles_rules: patient10000_rulesDemo
 
 dataTablesTypes:
  blood_tests_type: s3a
-# consent_type: s3a
-# blood_tests_clauses_type: s3a
-# blood_tests_rules_type: s3a
-# patientsProfiles_type: jdbc
-# patientsProfiles_clauses_type: jdbc
-# patientsProfiles_rules_type: jdbc
+ consent_type: s3a
+ blood_tests_clauses_type: s3a
+ blood_tests_rules_type: s3a
+ patientsProfiles_type: jdbc
+ patientsProfiles_clauses_type: jdbc
+ patientsProfiles_rules_type: jdbc
 
 
 port: 50052
