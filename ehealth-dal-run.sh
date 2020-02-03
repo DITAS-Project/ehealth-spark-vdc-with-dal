@@ -12,6 +12,7 @@ check MYSQL_USERNAME $MYSQL_USERNAME
 check MYSQL_PASSWORD $MYSQL_PASSWORD
 check POLICY_ENFORCEMENT_URI $POLICY_ENFORCEMENT_URI
 check KEYCLOAK_PUBLIC_KEY_URI $KEYCLOAK_PUBLIC_KEY_URI
+check MINIO_FILE $MINIO_FILE
 
 MYSQL_URI=$(echo $MYSQL_URI | sed -e "s,&,\\\&,")
 
@@ -23,6 +24,7 @@ sed -e "s,#{MINIO_URI},$MINIO_URI,g" \
     -e "s,#{MYSQL_PASSWORD},$MYSQL_PASSWORD,g" \
     -e "s,#{POLICY_ENFORCEMENT_URI},$POLICY_ENFORCEMENT_URI,g" \
     -e "s,#{KEYCLOAK_PUBLIC_KEY_URI},$KEYCLOAK_PUBLIC_KEY_URI,g" \
+    -e "s,#{MINIO_FILE},$MINIO_FILE,g" \
     /app/config/ehealth-dal-config.yml.sed > /app/config/ehealth-dal-config.yml
 
 sed -e "s,#{MINIO_URI},$MINIO_URI,g" \
@@ -33,6 +35,7 @@ sed -e "s,#{MINIO_URI},$MINIO_URI,g" \
     -e "s,#{MYSQL_PASSWORD},$MYSQL_PASSWORD,g" \
     -e "s,#{POLICY_ENFORCEMENT_URI},$POLICY_ENFORCEMENT_URI,g" \
     -e "s,#{KEYCLOAK_PUBLIC_KEY_URI},$KEYCLOAK_PUBLIC_KEY_URI,g" \
+    -e "s,#{MINIO_FILE},$MINIO_FILE,g" \
    /app/config/dataMovementServiceGrpcConfig.yml.sed > /app/config/dataMovementServiceGrpcConfig.yml
 
 _term() {

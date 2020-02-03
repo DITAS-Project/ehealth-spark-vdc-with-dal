@@ -6,7 +6,7 @@ sparkHadoopF3S3AConfig:
  spark.hadoop.fs.s3a.path.style.access: "true"
  spark.hadoop.fs.s3a.impl: "org.apache.hadoop.fs.s3a.S3AFileSystem"
  spark.hadoop.fs.AbstractFileSystem.s3a.impl: "org.apache.hadoop.fs.s3a.S3A"
- s3.filename: "s3a://ditas.dummy-example/ditas-blood-tests.parquet"
+ s3.filename: "#{MINIO_FILE}"
 
 jdbcConfig:
  db.mysql.url: "#{MYSQL_URI}"
