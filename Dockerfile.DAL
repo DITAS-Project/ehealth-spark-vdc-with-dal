@@ -25,6 +25,7 @@ FROM openjdk:8u212
 COPY --from=BUILD_DAL /app/dist /app/dist
 
 COPY DAL/src/test/resources/ehealthGrpcServerConfig.yml /app/config/ehealth-dal-config.yml.sed
+COPY DAL/src/test/resources/dataMovementServiceGrpcConfig.yml /app/config/dataMovementServiceGrpcConfig.yml.sed
 
 COPY ehealth-dal-run.sh /app/ehealth-dal-run.sh
 
