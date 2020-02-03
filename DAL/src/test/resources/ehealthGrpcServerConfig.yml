@@ -19,6 +19,8 @@ jwtServerTimeout: 5000 #milliseconds
 jwksServerEndpoint: "#{KEYCLOAK_PUBLIC_KEY_URI}"
 jwksCheckServerCertificate: false
 
+
+privacyZone: PUBLIC
 showDataFrameLength: 20
 
 dataTables:
